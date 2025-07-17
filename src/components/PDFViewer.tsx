@@ -152,3 +152,4 @@ export function PDFViewer({ file, currentSentence, currentPage, autoScroll, high
       </div>
     </div>
   );
+}
