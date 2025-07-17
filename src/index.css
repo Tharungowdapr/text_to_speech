@@ -42,3 +42,32 @@
 .dark ::-webkit-scrollbar-thumb:hover {
   background: #6B7280;
 }
+
+/* Sentence highlighting in PDF */
+.sentence-highlight {
+  background-color: rgba(59, 130, 246, 0.3) !important;
+  border-radius: 2px;
+  padding: 1px 2px;
+  animation: highlight-pulse 2s ease-in-out;
+}
+
+@keyframes highlight-pulse {
+  0% { background-color: rgba(59, 130, 246, 0.6); }
+  50% { background-color: rgba(59, 130, 246, 0.3); }
+  100% { background-color: rgba(59, 130, 246, 0.3); }
+}
+
+/* Progress bar styles */
+.progress-bar {
+  transition: width 0.3s ease;
+}
+
+/* Loading spinner */
+.loading-spinner {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

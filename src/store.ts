@@ -25,6 +25,10 @@ interface Bookmark {
 
 interface AppState {
   darkMode: boolean;
+  playbackSpeed: number;
+  playbackVolume: number;
+  selectedVoiceURI: string;
+  autoScroll: boolean;
   annotations: Annotation[];
   bookmarks: Bookmark[];
   searchQuery: string;
@@ -32,6 +36,10 @@ interface AppState {
   currentHighlight: { pageNumber: number; text: string } | null;
   recentPDFs: PDFData[];
   setDarkMode: (darkMode: boolean) => void;
+  setPlaybackSpeed: (speed: number) => void;
+  setPlaybackVolume: (volume: number) => void;
+  setSelectedVoiceURI: (voiceURI: string) => void;
+  setAutoScroll: (autoScroll: boolean) => void;
   addAnnotation: (annotation: Annotation) => void;
   removeAnnotation: (id: string) => void;
   addBookmark: (bookmark: Bookmark) => void;
@@ -48,6 +56,10 @@ export const useStore = create<AppState>()(
   persist(
     (set) => ({
       darkMode: true, // Set dark mode as default
+      playbackSpeed: 1,
+      playbackVolume: 1,
+      selectedVoiceURI: '',
+      autoScroll: true,
       annotations: [],
       bookmarks: [],
       searchQuery: '',
@@ -55,6 +67,10 @@ export const useStore = create<AppState>()(
       currentHighlight: null,
       recentPDFs: [],
       setDarkMode: (darkMode) => set({ darkMode }),
+      setPlaybackSpeed: (playbackSpeed) => set({ playbackSpeed }),
+      setPlaybackVolume: (playbackVolume) => set({ playbackVolume }),
+      setSelectedVoiceURI: (selectedVoiceURI) => set({ selectedVoiceURI }),
+      setAutoScroll: (autoScroll) => set({ autoScroll }),
       addAnnotation: (annotation) =>
         set((state) => ({ annotations: [...state.annotations, annotation] })),
       removeAnnotation: (id) =>
@@ -94,6 +110,10 @@ export const useStore = create<AppState>()(
       name: 'pdf-reader-storage',
       partialize: (state) => ({
         darkMode: state.darkMode,
+        playbackSpeed: state.playbackSpeed,
+        playbackVolume: state.playbackVolume,
+        selectedVoiceURI: state.selectedVoiceURI,
+        autoScroll: state.autoScroll,
         recentPDFs: [], // Don't persist PDF files, only store in memory
       }),
     }

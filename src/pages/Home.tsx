@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileUp, Book, Clock, Trash2 } from 'lucide-react';
+import { FileUp, Book, Clock, Trash2, Type, Mic } from 'lucide-react';
 import { useStore } from '../store';
 
 declare global {
@@ -73,25 +73,50 @@ export function Home() {
         </div>
 
         {/* Upload Section */}
-        <div className={`mb-12 p-8 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-lg text-center`}>
-          <Book className={`w-16 h-16 mx-auto mb-4 ${darkMode ? 'text-blue-400' : 'text-blue-500'}`} />
-          <h2 className={`text-2xl font-semibold mb-4 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
-            Convert PDF to Audio
-          </h2>
-          <p className={`mb-6 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
-            Upload a PDF file to convert it to audio. You can control the playback speed and choose different voices.
-          </p>
-          <button
-            onClick={handleFileSelect}
-            className={`inline-flex items-center gap-2 px-6 py-3 rounded-lg cursor-pointer transition-colors ${
-              darkMode 
-                ? 'bg-blue-600 hover:bg-blue-700 text-white' 
-                : 'bg-blue-500 hover:bg-blue-600 text-white'
-            }`}
-          >
-            <FileUp className="w-5 h-5" />
-            <span>Select PDF</span>
-          </button>
+        <div className="mb-12 grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* PDF to Audio */}
+          <div className={`p-8 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-lg text-center`}>
+            <Book className={`w-16 h-16 mx-auto mb-4 ${darkMode ? 'text-blue-400' : 'text-blue-500'}`} />
+            <h2 className={`text-2xl font-semibold mb-4 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+              PDF to Audio
+            </h2>
+            <p className={`mb-6 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+              Upload a PDF file to convert it to audio with advanced features like OCR, synchronized highlighting, and audio export.
+            </p>
+            <button
+              onClick={handleFileSelect}
+              className={`inline-flex items-center gap-2 px-6 py-3 rounded-lg cursor-pointer transition-colors ${
+                darkMode 
+                  ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                  : 'bg-blue-500 hover:bg-blue-600 text-white'
+              }`}
+            >
+              <FileUp className="w-5 h-5" />
+              <span>Select PDF</span>
+            </button>
+          </div>
+
+          {/* Text to Speech */}
+          <div className={`p-8 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-lg text-center`}>
+            <Type className={`w-16 h-16 mx-auto mb-4 ${darkMode ? 'text-green-400' : 'text-green-500'}`} />
+            <h2 className={`text-2xl font-semibold mb-4 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+              Text to Speech
+            </h2>
+            <p className={`mb-6 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+              Convert any text to speech with customizable voices, speed control, and audio export capabilities.
+            </p>
+            <button
+              onClick={() => navigate('/text-to-speech')}
+              className={`inline-flex items-center gap-2 px-6 py-3 rounded-lg cursor-pointer transition-colors ${
+                darkMode 
+                  ? 'bg-green-600 hover:bg-green-700 text-white' 
+                  : 'bg-green-500 hover:bg-green-600 text-white'
+              }`}
+            >
+              <Mic className="w-5 h-5" />
+              <span>Start Converting</span>
+            </button>
+          </div>
         </div>
 
         {/* Recent PDFs */}
