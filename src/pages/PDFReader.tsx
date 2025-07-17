@@ -1,8 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { FileUp, Play, Pause, Volume2, Settings, Moon, Sun, SkipBack, SkipForward, Rewind, FastForward, ArrowLeft } from 'lucide-react';
+import { FileUp, Play, Pause, Volume2, Settings, Moon, Sun, SkipBack, SkipForward, Rewind, FastForward, ArrowLeft, Download, Loader, Eye, EyeOff } from 'lucide-react';
 import { PDFViewer } from '../components/PDFViewer';
 import { useStore } from '../store';
+import { OCRProcessor } from '../utils/ocrProcessor';
+import { AudioExporter } from '../utils/audioExport';
+import { saveAs } from 'file-saver';
 import { pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
@@ -17,36 +20,68 @@ export function PDFReader() {
   const [pdfFile, setPdfFile] = useState<File | null>(initialPdfFile || null);
   const [extractedText, setExtractedText] = useState<string>('');
   const [isPlaying, setIsPlaying] = useState(false);
-  const [speed, setSpeed] = useState(1);
-  const [volume, setVolume] = useState(1);
   const [sentences, setSentences] = useState<string[]>([]);
   const [currentSentence, setCurrentSentence] = useState(0);
-  const [autoScroll, setAutoScroll] = useState(true);
   const [sentencePageMap, setSentencePageMap] = useState<Map<number, number>>(new Map());
   const [selectedVoice, setSelectedVoice] = useState<SpeechSynthesisVoice | null>(null);
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [extractionProgress, setExtractionProgress] = useState(0);
+  const [useOCR, setUseOCR] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportProgress, setExportProgress] = useState(0);
   
   const speechSynthesis = window.speechSynthesis;
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const textContainerRef = useRef<HTMLDivElement>(null);
-  const { darkMode, setDarkMode, setCurrentHighlight, addRecentPDF } = useStore();
+  const ocrProcessorRef = useRef<OCRProcessor | null>(null);
+  const audioExporterRef = useRef<AudioExporter | null>(null);
+  
+  const { 
+    darkMode, 
+    setDarkMode, 
+    setCurrentHighlight, 
+    addRecentPDF,
+    playbackSpeed,
+    setPlaybackSpeed,
+    playbackVolume,
+    setPlaybackVolume,
+    selectedVoiceURI,
+    setSelectedVoiceURI,
+    autoScroll,
+    setAutoScroll
+  } = useStore();
 
   useEffect(() => {
     const loadVoices = () => {
       const voices = speechSynthesis.getVoices();
       setAvailableVoices(voices);
-      if (voices.length > 0 && !selectedVoice) {
+      
+      if (selectedVoiceURI && voices.length > 0) {
+        const voice = voices.find(v => v.voiceURI === selectedVoiceURI);
+        if (voice) {
+          setSelectedVoice(voice);
+        }
+      } else if (voices.length > 0 && !selectedVoice) {
         setSelectedVoice(voices[0]);
+        setSelectedVoiceURI(voices[0].voiceURI);
       }
     };
 
     loadVoices();
     speechSynthesis.onvoiceschanged = loadVoices;
 
+    // Initialize OCR processor
+    ocrProcessorRef.current = new OCRProcessor();
+    audioExporterRef.current = new AudioExporter();
+
     return () => {
       speechSynthesis.onvoiceschanged = null;
+      if (ocrProcessorRef.current) {
+        ocrProcessorRef.current.terminate();
+      }
     };
-  }, []);
+  }, [selectedVoiceURI, selectedVoice, setSelectedVoiceURI]);
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -74,70 +109,54 @@ export function PDFReader() {
   const extractTextFromPDF = async () => {
     if (!pdfFile) return;
 
+    setIsExtracting(true);
+    setExtractionProgress(0);
+
     try {
       const arrayBuffer = await pdfFile.arrayBuffer();
       const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
       let fullText = '';
       const newSentencePageMap = new Map();
-      let totalTextLength = 0;
-
-      // First pass: calculate total text length
+      
       for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const textContent = await page.getTextContent();
-        const pageText = textContent.items
-          .map((item: any) => {
-            // Handle different types of text content
-            if (typeof item.str === 'string') {
-              return item.str;
-            } else if (item.chars) {
-              return item.chars.map((char: any) => char.unicode).join('');
-            }
-            return '';
-          })
-          .join(' ');
-        
-        totalTextLength += pageText.length;
-      }
-
-      // Second pass: extract text with proper page mapping
-      let processedLength = 0;
-      for (let i = 1; i <= pdf.numPages; i++) {
+        setExtractionProgress((i / pdf.numPages) * 100);
         const page = await pdf.getPage(i);
         
-        // Get page text content
-        const textContent = await page.getTextContent({
-          normalizeWhitespace: true,
-          disableCombineTextItems: false,
-        });
-
-        // Process text content with position information
-        const textItems = textContent.items
-          .sort((a: any, b: any) => {
-            // Sort by vertical position first
-            if (Math.abs(a.transform[5] - b.transform[5]) > 5) {
-              return b.transform[5] - a.transform[5];
+        let pageText = '';
+        
+        if (useOCR) {
+          // Use OCR for image-based PDFs
+          try {
+            if (!ocrProcessorRef.current) {
+              ocrProcessorRef.current = new OCRProcessor();
+              await ocrProcessorRef.current.initialize();
             }
-            // Then by horizontal position
-            return a.transform[4] - b.transform[4];
-          })
-          .map((item: any) => {
-            if (typeof item.str === 'string') {
-              return item.str;
-            } else if (item.chars) {
-              return item.chars.map((char: any) => char.unicode).join('');
+            pageText = await ocrProcessorRef.current.processImagePDF(page);
+          } catch (ocrError) {
+            console.warn('OCR failed for page', i, 'falling back to text extraction');
+            pageText = await extractTextFromPage(page);
+          }
+        } else {
+          // Standard text extraction
+          pageText = await extractTextFromPage(page);
+          
+          // If no text found and OCR is available, suggest using OCR
+          if (!pageText.trim() && i === 1) {
+            const useOCRConfirm = confirm(
+              'No text found on the first page. This might be a scanned PDF. Would you like to use OCR (Optical Character Recognition) to extract text from images?'
+            );
+            if (useOCRConfirm) {
+              setUseOCR(true);
+              // Restart extraction with OCR
+              await extractTextFromPDF();
+              return;
             }
-            return '';
-          });
-
-        const pageText = textItems.join(' ')
-          // Clean up common PDF text artifacts
-          .replace(/\s+/g, ' ')
-          .replace(/[^\S\r\n]+/g, ' ')
-          .trim();
-
-        fullText += pageText + ' ';
-        processedLength += pageText.length;
+          }
+        }
+        
+        if (pageText.trim()) {
+          fullText += pageText + ' ';
+        }
       }
 
       // Split text into sentences with improved sentence detection
@@ -155,21 +174,17 @@ export function PDFReader() {
         });
 
       // Map sentences to pages
-      let currentPage = 1;
-      let textProcessed = 0;
-      const avgTextPerPage = totalTextLength / pdf.numPages;
+      const avgSentencesPerPage = Math.ceil(sentenceArray.length / pdf.numPages);
 
       sentenceArray.forEach((sentence, index) => {
-        textProcessed += sentence.length;
-        while (textProcessed > avgTextPerPage * currentPage && currentPage < pdf.numPages) {
-          currentPage++;
-        }
-        newSentencePageMap.set(index, currentPage);
+        const estimatedPage = Math.min(pdf.numPages, Math.ceil((index + 1) / avgSentencesPerPage));
+        newSentencePageMap.set(index, estimatedPage);
       });
 
       setExtractedText(fullText);
       setSentences(sentenceArray);
       setSentencePageMap(newSentencePageMap);
+      setExtractionProgress(100);
 
       if (sentenceArray.length === 0) {
         throw new Error('No readable text found in the PDF');
@@ -177,15 +192,80 @@ export function PDFReader() {
 
     } catch (error) {
       console.error('Error extracting text from PDF:', error);
-      alert('Error extracting text from PDF. The file might be scanned, image-based, or protected.');
+      alert(`Error extracting text from PDF: ${error instanceof Error ? error.message : 'Unknown error'}. The file might be scanned, image-based, or protected.`);
+    } finally {
+      setIsExtracting(false);
+      setExtractionProgress(0);
+    }
+  };
+
+  const extractTextFromPage = async (page: any): Promise<string> => {
+    try {
+      const textContent = await page.getTextContent({
+        normalizeWhitespace: true,
+        disableCombineTextItems: false,
+      });
+
+      // Process text content with position information
+      const textItems = textContent.items
+        .sort((a: any, b: any) => {
+          // Sort by vertical position first (top to bottom)
+          if (Math.abs(a.transform[5] - b.transform[5]) > 5) {
+            return b.transform[5] - a.transform[5];
+          }
+          // Then by horizontal position (left to right)
+          return a.transform[4] - b.transform[4];
+        })
+        .map((item: any) => {
+          if (typeof item.str === 'string') {
+            return item.str;
+          } else if (item.chars) {
+            return item.chars.map((char: any) => char.unicode).join('');
+          }
+          return '';
+        });
+
+      return textItems.join(' ')
+        .replace(/\s+/g, ' ')
+        .replace(/[^\S\r\n]+/g, ' ')
+        .trim();
+    } catch (error) {
+      console.error('Error extracting text from page:', error);
+      return '';
+    }
+  };
+
+  const exportAudio = async () => {
+    if (sentences.length === 0 || !audioExporterRef.current) return;
+
+    setIsExporting(true);
+    setExportProgress(0);
+
+    try {
+      const audioBlob = await audioExporterRef.current.exportSpeechToAudio(
+        sentences,
+        selectedVoice,
+        playbackSpeed,
+        playbackVolume,
+        (progress) => setExportProgress(progress)
+      );
+
+      const fileName = pdfFile ? `${pdfFile.name.replace('.pdf', '')}_audio.wav` : 'text_to_speech.wav';
+      saveAs(audioBlob, fileName);
+    } catch (error) {
+      console.error('Error exporting audio:', error);
+      alert('Could not export audio. This feature may not be fully supported in your browser.');
+    } finally {
+      setIsExporting(false);
+      setExportProgress(0);
     }
   };
 
   const speakSentence = (index: number) => {
     if (index >= 0 && index < sentences.length) {
       const utterance = new SpeechSynthesisUtterance(sentences[index]);
-      utterance.rate = speed;
-      utterance.volume = volume;
+      utterance.rate = playbackSpeed;
+      utterance.volume = playbackVolume;
       if (selectedVoice) {
         utterance.voice = selectedVoice;
       }
@@ -214,20 +294,6 @@ export function PDFReader() {
     } else {
       setIsPlaying(true);
       speakSentence(currentSentence);
-    }
-  };
-
-  const handleSpeedChange = (newSpeed: number) => {
-    setSpeed(newSpeed);
-    if (utteranceRef.current) {
-      utteranceRef.current.rate = newSpeed;
-    }
-  };
-
-  const handleVolumeChange = (newVolume: number) => {
-    setVolume(newVolume);
-    if (utteranceRef.current) {
-      utteranceRef.current.volume = newVolume;
     }
   };
 
@@ -323,14 +389,30 @@ export function PDFReader() {
               <button
                 onClick={extractTextFromPDF}
                 disabled={!pdfFile}
-                className={`flex items-center gap-2 px-3 py-1.5 text-white rounded-lg transition-colors text-sm ${
+                className={`flex items-center gap-2 px-3 py-1.5 text-white rounded-lg transition-colors text-sm relative ${
                   darkMode 
                     ? 'bg-blue-600 hover:bg-blue-700' 
                     : 'bg-blue-500 hover:bg-blue-600'
                 } disabled:opacity-50 disabled:cursor-not-allowed`}
               >
-                Extract Text
+                {isExtracting ? (
+                  <>
+                    <Loader className="w-4 h-4 animate-spin" />
+                    Extracting... {Math.round(extractionProgress)}%
+                  </>
+                ) : (
+                  'Extract Text'
+                )}
               </button>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={useOCR}
+                  onChange={(e) => setUseOCR(e.target.checked)}
+                  className="rounded"
+                />
+                <span className={`text-sm ${darkMode ? 'text-white' : 'text-gray-700'}`}>Use OCR</span>
+              </label>
               <button
                 onClick={() => setDarkMode(!darkMode)}
                 className={`p-1.5 rounded-full ${darkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-100 hover:bg-gray-200'} transition-colors`}
@@ -353,6 +435,7 @@ export function PDFReader() {
                 currentSentence={sentences[currentSentence] || ''}
                 currentPage={sentencePageMap.get(currentSentence) || 1}
                 autoScroll={autoScroll}
+                highlightText={sentences[currentSentence]}
               />
             </div>
           ) : (
@@ -375,7 +458,10 @@ export function PDFReader() {
                   value={selectedVoice?.voiceURI || ''}
                   onChange={(e) => {
                     const voice = availableVoices.find(v => v.voiceURI === e.target.value);
-                    if (voice) setSelectedVoice(voice);
+                    if (voice) {
+                      setSelectedVoice(voice);
+                      setSelectedVoiceURI(voice.voiceURI);
+                    }
                   }}
                   className={`px-3 py-1.5 rounded border ${
                     darkMode 
@@ -459,16 +545,16 @@ export function PDFReader() {
                     min="0"
                     max="1"
                     step="0.1"
-                    value={volume}
-                    onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
+                    value={playbackVolume}
+                    onChange={(e) => setPlaybackVolume(parseFloat(e.target.value))}
                     className="w-24"
                   />
                 </div>
                 <div className="flex items-center gap-2">
                   <Settings className={`w-5 h-5 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`} />
                   <select
-                    value={speed}
-                    onChange={(e) => handleSpeedChange(parseFloat(e.target.value))}
+                    value={playbackSpeed}
+                    onChange={(e) => setPlaybackSpeed(parseFloat(e.target.value))}
                     className={`px-2 py-1 rounded border transition-colors ${
                       darkMode 
                         ? 'bg-gray-700 border-gray-600 text-white' 
@@ -484,6 +570,27 @@ export function PDFReader() {
                     <option value="2">2x</option>
                   </select>
                 </div>
+                <button
+                  onClick={exportAudio}
+                  disabled={!extractedText || isExporting}
+                  className={`flex items-center gap-1 px-3 py-1.5 rounded transition-colors text-sm ${
+                    darkMode 
+                      ? 'bg-purple-600 hover:bg-purple-700 text-white' 
+                      : 'bg-purple-500 hover:bg-purple-600 text-white'
+                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+                >
+                  {isExporting ? (
+                    <>
+                      <Loader className="w-4 h-4 animate-spin" />
+                      {Math.round(exportProgress)}%
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-4 h-4" />
+                      Export
+                    </>
+                  )}
+                </button>
                 <label className="flex items-center gap-2">
                   <input
                     type="checkbox"
