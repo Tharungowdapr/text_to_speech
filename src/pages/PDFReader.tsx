@@ -48,40 +48,42 @@ export function PDFReader() {
     setPlaybackVolume,
     selectedVoiceURI,
     setSelectedVoiceURI,
+    preferredVoiceType,
+    setPreferredVoiceType,
     autoScroll,
     setAutoScroll
   } = useStore();
 
   useEffect(() => {
-    const loadVoices = () => {
-      const voices = speechSynthesis.getVoices();
-      setAvailableVoices(voices);
+    const initializeVoices = async () => {
+      await voiceManager.initialize();
+      const englishVoices = voiceManager.getEnglishVoices().map(v => v.voice);
+      setAvailableVoices(englishVoices);
       
-      if (selectedVoiceURI && voices.length > 0) {
-        const voice = voices.find(v => v.voiceURI === selectedVoiceURI);
-        if (voice) {
-          setSelectedVoice(voice);
+      if (selectedVoiceURI) {
+        const voice = voiceManager.getVoiceByURI(selectedVoiceURI);
+        setSelectedVoice(voice);
+      } else {
+        const bestVoice = voiceManager.getBestVoice(preferredVoiceType === 'google');
+        if (bestVoice) {
+          setSelectedVoice(bestVoice);
+          setSelectedVoiceURI(bestVoice.voiceURI);
         }
-      } else if (voices.length > 0 && !selectedVoice) {
-        setSelectedVoice(voices[0]);
-        setSelectedVoiceURI(voices[0].voiceURI);
       }
     };
 
-    loadVoices();
-    speechSynthesis.onvoiceschanged = loadVoices;
+    initializeVoices();
 
     // Initialize OCR processor
     ocrProcessorRef.current = new OCRProcessor();
     audioExporterRef.current = new AudioExporter();
 
     return () => {
-      speechSynthesis.onvoiceschanged = null;
       if (ocrProcessorRef.current) {
         ocrProcessorRef.current.terminate();
       }
     };
-  }, [selectedVoiceURI, selectedVoice, setSelectedVoiceURI]);
+  }, [selectedVoiceURI, preferredVoiceType, setSelectedVoiceURI]);
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -457,10 +459,15 @@ export function PDFReader() {
                 <select
                   value={selectedVoice?.voiceURI || ''}
                   onChange={(e) => {
-                    const voice = availableVoices.find(v => v.voiceURI === e.target.value);
+                    const voice = voiceManager.getVoiceByURI(e.target.value);
                     if (voice) {
                       setSelectedVoice(voice);
                       setSelectedVoiceURI(voice.voiceURI);
+                      // Update preferred type based on selection
+                      const voiceInfo = voiceManager.getEnglishVoices().find(v => v.voice.voiceURI === e.target.value);
+                      if (voiceInfo) {
+                        setPreferredVoiceType(voiceInfo.isGoogle ? 'google' : 'system');
+                      }
                     }
                   }}
                   className={`px-3 py-1.5 rounded border ${
@@ -471,7 +478,7 @@ export function PDFReader() {
                 >
                   {availableVoices.map((voice) => (
                     <option key={voice.voiceURI} value={voice.voiceURI}>
-                      {voice.name} ({voice.lang})
+                      {voiceManager.getVoiceDisplayName(voice)}
                     </option>
                   ))}
                 </select>
