@@ -1,0 +1,44 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom styles for dark mode PDF viewer */
+.dark .react-pdf__Page {
+  background-color: #1f2937 !important;
+  filter: invert(1) hue-rotate(180deg);
+}
+
+.dark .react-pdf__Page__canvas {
+  border-radius: 0.5rem;
+}
+
+/* Prevent text from being inverted in dark mode */
+.dark .react-pdf__Page__textContent {
+  filter: invert(1) hue-rotate(180deg);
+}
+
+/* Adjust text layer in dark mode */
+.dark .textLayer {
+  opacity: 0.8;
+  mix-blend-mode: difference;
+}
+
+/* Style scrollbars for dark mode */
+.dark ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: #374151;
+  border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #4B5563;
+  border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #6B7280;
+}
