@@ -7,6 +7,7 @@ import { OCRProcessor } from '../utils/ocrProcessor';
 import { AudioExporter } from '../utils/audioExport';
 import { saveAs } from 'file-saver';
 import { pdfjs } from 'react-pdf';
+import { VoiceManager } from '../utils/voiceManager';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 
@@ -36,6 +37,7 @@ export function PDFReader() {
   const textContainerRef = useRef<HTMLDivElement>(null);
   const ocrProcessorRef = useRef<OCRProcessor | null>(null);
   const audioExporterRef = useRef<AudioExporter | null>(null);
+  const voiceManager = VoiceManager.getInstance();
   
   const { 
     darkMode, 
