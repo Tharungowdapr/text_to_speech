@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FileUp, Book, Clock, Trash2, Type, Mic } from 'lucide-react';
+import { FileUp, Book, Clock, Trash2, Type, Mic, Navigation } from 'lucide-react';
 import { useStore } from '../store';
 
 declare global {
@@ -73,7 +73,7 @@ export function Home() {
         </div>
 
         {/* Upload Section */}
-        <div className="mb-12 grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="mb-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {/* PDF to Audio */}
           <div className={`p-8 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-lg text-center`}>
             <Book className={`w-16 h-16 mx-auto mb-4 ${darkMode ? 'text-blue-400' : 'text-blue-500'}`} />
@@ -115,6 +115,28 @@ export function Home() {
             >
               <Mic className="w-5 h-5" />
               <span>Start Converting</span>
+            </button>
+          </div>
+
+          {/* Navigation Demo */}
+          <div className={`p-8 rounded-lg ${darkMode ? 'bg-gray-800' : 'bg-white'} shadow-lg text-center`}>
+            <Navigation className={`w-16 h-16 mx-auto mb-4 ${darkMode ? 'text-purple-400' : 'text-purple-500'}`} />
+            <h2 className={`text-2xl font-semibold mb-4 ${darkMode ? 'text-white' : 'text-gray-800'}`}>
+              Navigation Demo
+            </h2>
+            <p className={`mb-6 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
+              Experience dynamic page navigation with synchronized pointer updates and real-time content synchronization.
+            </p>
+            <button
+              onClick={() => navigate('/navigation-demo')}
+              className={`inline-flex items-center gap-2 px-6 py-3 rounded-lg cursor-pointer transition-colors ${
+                darkMode 
+                  ? 'bg-purple-600 hover:bg-purple-700 text-white' 
+                  : 'bg-purple-500 hover:bg-purple-600 text-white'
+              }`}
+            >
+              <Navigation className="w-5 h-5" />
+              <span>Try Demo</span>
             </button>
           </div>
         </div>
