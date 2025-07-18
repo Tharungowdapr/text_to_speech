@@ -57,12 +57,40 @@
   100% { width: 100%; }
 }
 
+@keyframes pointer-appear {
+  0% { 
+    opacity: 0; 
+    transform: translateY(-10px) scale(0.9);
+  }
+  100% { 
+    opacity: 1; 
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes pointer-pulse {
+  0%, 100% { 
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4);
+  }
+  50% { 
+    box-shadow: 0 0 0 10px rgba(59, 130, 246, 0);
+  }
+}
+
 .animate-pulse-subtle {
   animation: pulse-subtle 2s ease-in-out infinite;
 }
 
 .animate-progress-bar {
   animation: progress-bar 3s ease-in-out infinite;
+}
+
+.animate-pointer-appear {
+  animation: pointer-appear 0.3s ease-out;
+}
+
+.animate-pointer-pulse {
+  animation: pointer-pulse 2s infinite;
 }
 
 /* Touch-friendly button styles */
@@ -134,6 +162,58 @@ input[type="range"]::-moz-range-thumb {
 
 .dark input[type="range"]::-moz-range-track {
   background: #4b5563;
+}
+
+/* Dynamic Navigation Styles */
+.page-transition {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.page-enter {
+  opacity: 0;
+  transform: translateX(20px);
+}
+
+.page-enter-active {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.page-exit {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.page-exit-active {
+  opacity: 0;
+  transform: translateX(-20px);
+}
+
+/* Pointer styles */
+.dynamic-pointer {
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+/* Navigation button hover effects */
+.nav-button {
+  position: relative;
+  overflow: hidden;
+}
+
+.nav-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+  transition: left 0.5s;
+}
+
+.nav-button:hover::before {
+  left: 100%;
 }
 
 /* Mobile-optimized styles */
