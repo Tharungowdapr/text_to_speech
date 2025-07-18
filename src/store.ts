@@ -497,6 +497,35 @@ export function PDFReader() {
             <div className="flex justify-center gap-4 mt-4">
               <button
                 onClick={() => setShowVoiceSelector(!showVoiceSelector)}
+                className={`touch-button flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
+                  darkMode 
+                    ? 'bg-gray-700 hover:bg-gray-600 text-white' 
+                    : 'bg-gray-100 hover:bg-gray-200'
+                }`}
+              >
+                <span>Voice Settings</span>
+              </button>
+              <button
+                onClick={exportAudio}
+                disabled={sentences.length === 0 || isExporting}
+                className={`touch-button flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
+                  darkMode 
+                    ? 'bg-green-600 hover:bg-green-700 text-white' 
+                    : 'bg-green-500 hover:bg-green-600 text-white'
+                } disabled:opacity-50 disabled:cursor-not-allowed`}
+              >
+                {isExporting ? (
+                  <>
+                    <Loader className="w-4 h-4 animate-spin" />
+                    <span>Exporting... {Math.round(exportProgress)}%</span>
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-4 h-4" />
+                    <span>Export Audio</span>
+                  </>
+                )}
+              </button>
             </div>
           </div>
 
