@@ -5,6 +5,8 @@ import { PDFViewer } from '../components/PDFViewer';
 import { useStore } from '../store';
 import { OCRProcessor } from '../utils/ocrProcessor';
 import { AudioExporter } from '../utils/audioExport';
+import { PageAudioSynchronizer, PlaybackState } from '../utils/pageAudioSync';
+import { PageNavigationControls } from '../components/PageNavigationControls';
 import { saveAs } from 'file-saver';
 import { pdfjs } from 'react-pdf';
 import { VoiceManager } from '../utils/voiceManager';
@@ -31,12 +33,15 @@ export function PDFReader() {
   const [useOCR, setUseOCR] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [exportProgress, setExportProgress] = useState(0);
+  const [syncState, setSyncState] = useState<PlaybackState | null>(null);
+  const [showPageNavigation, setShowPageNavigation] = useState(true);
   
   const speechSynthesis = window.speechSynthesis;
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const textContainerRef = useRef<HTMLDivElement>(null);
   const ocrProcessorRef = useRef<OCRProcessor | null>(null);
   const audioExporterRef = useRef<AudioExporter | null>(null);
+  const synchronizerRef = useRef<PageAudioSynchronizer | null>(null);
   const voiceManager = VoiceManager.getInstance();
   
   const { 
@@ -79,10 +84,19 @@ export function PDFReader() {
     // Initialize OCR processor
     ocrProcessorRef.current = new OCRProcessor();
     audioExporterRef.current = new AudioExporter();
+    
+    // Initialize page-audio synchronizer
+    synchronizerRef.current = new PageAudioSynchronizer(
+      (state) => setSyncState(state),
+      (error) => console.error('Synchronizer error:', error)
+    );
 
     return () => {
       if (ocrProcessorRef.current) {
         ocrProcessorRef.current.terminate();
+      }
+      if (synchronizerRef.current) {
+        synchronizerRef.current.destroy();
       }
     };
   }, [selectedVoiceURI, preferredVoiceType, setSelectedVoiceURI]);
@@ -189,6 +203,15 @@ export function PDFReader() {
       setSentences(sentenceArray);
       setSentencePageMap(newSentencePageMap);
       setExtractionProgress(100);
+      
+      // Initialize synchronizer with extracted data
+      if (synchronizerRef.current) {
+        await synchronizerRef.current.initializePageMappings(
+          Array.from({ length: pdf.numPages }, (_, i) => ({ pageNumber: i + 1 })),
+          sentenceArray,
+          useOCR ? 'ocr' : 'text'
+        );
+      }
 
       if (sentenceArray.length === 0) {
         throw new Error('No readable text found in the PDF');
@@ -267,6 +290,11 @@ export function PDFReader() {
 
   const speakSentence = (index: number) => {
     if (index >= 0 && index < sentences.length) {
+      // Update synchronizer position
+      if (synchronizerRef.current) {
+        synchronizerRef.current.updateAudioPosition(index);
+      }
+      
       const utterance = new SpeechSynthesisUtterance(sentences[index]);
       utterance.rate = playbackSpeed;
       utterance.volume = playbackVolume;
@@ -294,9 +322,15 @@ export function PDFReader() {
     if (isPlaying) {
       speechSynthesis.cancel();
       setIsPlaying(false);
+      if (synchronizerRef.current) {
+        synchronizerRef.current.setPlaybackState(false);
+      }
       setCurrentHighlight(null);
     } else {
       setIsPlaying(true);
+      if (synchronizerRef.current) {
+        synchronizerRef.current.setPlaybackState(true);
+      }
       speakSentence(currentSentence);
     }
   };
@@ -342,8 +376,52 @@ export function PDFReader() {
   const handleSentenceClick = (index: number) => {
     speechSynthesis.cancel();
     setCurrentSentence(index);
+    
+    // Update synchronizer position
+    if (synchronizerRef.current) {
+      synchronizerRef.current.updateAudioPosition(index);
+    }
+    
     if (isPlaying) {
       speakSentence(index);
+    }
+  };
+  
+  // Handle page navigation from controls
+  const handlePageChange = async (pageNumber: number) => {
+    if (synchronizerRef.current) {
+      const audioPosition = synchronizerRef.current.getAudioPositionForPage(pageNumber);
+      if (audioPosition) {
+        setCurrentSentence(audioPosition.sentenceIndex);
+        setCurrentHighlight({
+          pageNumber: pageNumber,
+          text: sentences[audioPosition.sentenceIndex] || ''
+        });
+        
+        if (isPlaying) {
+          speakSentence(audioPosition.sentenceIndex);
+        }
+      }
+    }
+  };
+  
+  // Handle playback toggle from controls
+  const handlePlaybackToggle = (shouldPlay: boolean) => {
+    if (shouldPlay && !isPlaying) {
+      toggleSpeech();
+    } else if (!shouldPlay && isPlaying) {
+      toggleSpeech();
+    }
+  };
+  
+  // Handle stop from controls
+  const handleStop = () => {
+    speechSynthesis.cancel();
+    setIsPlaying(false);
+    setCurrentSentence(0);
+    setCurrentHighlight(null);
+    if (synchronizerRef.current) {
+      synchronizerRef.current.setPlaybackState(false);
     }
   };
 
@@ -453,6 +531,17 @@ export function PDFReader() {
 
         {/* Right Side - Text and Controls */}
         <div className="w-1/2 flex flex-col gap-4">
+          {/* Page Navigation Controls */}
+          {showPageNavigation && (
+            <PageNavigationControls
+              synchronizer={synchronizerRef.current}
+              onPageChange={handlePageChange}
+              onPlaybackToggle={handlePlaybackToggle}
+              onStop={handleStop}
+              darkMode={darkMode}
+            />
+          )}
+          
           {/* Controls Panel */}
           <div className={`p-4 rounded-lg shadow-lg ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
             <div className="flex flex-col gap-4">
@@ -600,6 +689,15 @@ export function PDFReader() {
                     </>
                   )}
                 </button>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={showPageNavigation}
+                    onChange={(e) => setShowPageNavigation(e.target.checked)}
+                    className="rounded"
+                  />
+                  <span className={`text-sm ${darkMode ? 'text-white' : 'text-gray-700'}`}>Page Navigation</span>
+                </label>
                 <label className="flex items-center gap-2">
                   <input
                     type="checkbox"
