@@ -1,0 +1,15 @@
+__pycache__
+*.pyc
+*.pyo
+.env
+.git
+.gitignore
+*.md
+.vscode
+.idea
+*.tar.gz
+static/uploads/*
+static/audio/*
+staticfiles/
+docker-compose.yml
+nginx.conf
