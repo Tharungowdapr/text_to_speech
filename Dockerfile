@@ -20,11 +20,12 @@ RUN addgroup --system --gid 1001 app \
     && adduser --system --uid 1001 --gid 1001 app \
     && chown -R app:app /app
 
-USER app
-
 EXPOSE 8000
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
     CMD curl -f http://localhost:8000/api/health/ || exit 1
 
-CMD ["gunicorn", "config.wsgi:application", "-c", "gunicorn.conf.py"]
+USER app
+
+COPY entrypoint.sh /entrypoint.sh
+ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]
