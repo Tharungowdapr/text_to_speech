@@ -5,11 +5,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}PDF to Audio Converter{% endblock %}</title>
-  <link rel="stylesheet" href="{% static 'css/style.css' %}">
 </head>
 <body>
   {% block body %}{% endblock %}
-  <div id="toast" class="toast"></div>
+  <div id="toast"></div>
   <script src="{% static 'js/main.js' %}"></script>
   {% block scripts %}{% endblock %}
   <script>
@@ -21,42 +20,13 @@
       var el = document.getElementById('userMenu');
       if (!el) return;
       if (d.authenticated) {
-        el.innerHTML = '<span style="font-size:12px;color:var(--text-secondary);">' + d.username + '</span>'
-          + '<button onclick="fetch(\'/api/logout/\',{method:\'POST\',headers:{\'X-CSRFToken\':getCSRFToken()}}).then(()=>location.href=\'/\')" class="btn" style="padding:2px 8px;font-size:11px;">Sign Out</button>'
-          + '<button id="themeToggle" class="btn" style="padding:2px 6px;font-size:11px;" title="Toggle theme">\u263C</button>';
+        el.innerHTML = '<span>' + d.username + '</span>'
+          + '<button onclick="fetch(\'/api/logout/\',{method:\'POST\',headers:{\'X-CSRFToken\':getCSRFToken()}}).then(()=>location.href=\'/\')">Sign Out</button>';
       } else {
-        el.innerHTML = '<button id="themeToggle" class="btn" style="padding:2px 6px;font-size:11px;margin-right:4px;" title="Toggle theme">\u263C</button>'
-          + '<a href="/login/" class="btn" style="padding:2px 8px;font-size:11px;text-decoration:none;">Sign In</a>';
+        el.innerHTML = '<a href="/login/">Sign In</a>';
       }
     };
     x.send();
-
-    // Theme: follow system preference, allow manual override
-    var themeMode = localStorage.getItem('themeMode') || 'auto';
-    function applyTheme(mode) {
-      document.body.classList.remove('light-mode', 'dark-mode');
-      if (mode === 'light') document.body.classList.add('light-mode');
-      else if (mode === 'dark') document.body.classList.add('dark-mode');
-      // 'auto' = no class, uses prefers-color-scheme from CSS
-      var btn = document.getElementById('themeToggle');
-      if (btn) btn.textContent = mode === 'light' ? '\u2600' : mode === 'dark' ? '\u263D' : '\u263C';
-    }
-    applyTheme(themeMode);
-
-    document.addEventListener('click', function(e) {
-      if (e.target.id === 'themeToggle') {
-        var cycle = { auto: 'light', light: 'dark', dark: 'auto' };
-        themeMode = cycle[themeMode] || 'auto';
-        localStorage.setItem('themeMode', themeMode);
-        applyTheme(themeMode);
-      }
-    });
-
-    // React to system theme changes in real-time
-    var mq = window.matchMedia('(prefers-color-scheme: dark)');
-    mq.addEventListener('change', function() {
-      if (themeMode === 'auto') applyTheme('auto');
-    });
   })();
   </script>
 </body>

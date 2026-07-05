@@ -9,10 +9,10 @@
     <main class="main-content">
       <div class="toolbar">
         <span class="toolbar-title">PDF Reader</span>
-        <label class="btn" style="cursor:pointer;">
+        <label class="btn">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
           Open PDF
-          <input type="file" id="pdfInputReader" accept=".pdf" style="display:none;">
+          <input type="file" id="pdfInputReader" accept=".pdf">
         </label>
         <button id="extractBtn" disabled class="btn btn-accent">
           <svg id="extractIcon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
@@ -30,54 +30,54 @@
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2z"/></svg>
           Export Audiobook
         </button>
-        <span id="progressStat" style="font-size:11px;color:var(--text-tertiary);margin-left:auto;"></span>
-        <button id="pdfDarkToggle" class="btn" style="margin-left:4px;" title="Toggle PDF dark mode">
+        <span id="progressStat"></span>
+        <button id="pdfDarkToggle" class="btn" title="Toggle PDF dark mode">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
         </button>
-        <button id="shortcutsBtn" class="btn" style="margin-left:4px;" title="Keyboard shortcuts">
+        <button id="shortcutsBtn" class="btn" title="Keyboard shortcuts">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h.01M12 12h.01M16 12h.01M6 16h.01M10 16h.01M14 16h.01M18 16h.01"/></svg>
         </button>
-        <span id="formatBadge" style="font-size:10px;color:var(--text-tertiary);background:var(--bg-glass);padding:2px 6px;border-radius:4px;display:none;"></span>
+        <span id="formatBadge"></span>
       </div>
 
       <!-- Batch progress bar -->
-      <div id="batchProgress" style="display:none;padding:2px 12px;">
-        <div style="height:3px;background:var(--bg-glass);border-radius:2px;overflow:hidden;">
-          <div id="batchProgressBar" style="height:100%;width:0%;background:var(--accent);border-radius:2px;transition:width 0.3s;"></div>
+      <div id="batchProgress">
+        <div>
+          <div id="batchProgressBar"></div>
         </div>
       </div>
 
-      <div style="flex:1;display:flex;overflow:hidden;">
+      <div>
         <!-- Left: PDF preview -->
-        <div style="flex:1;display:flex;flex-direction:column;overflow:hidden;border-right:1px solid var(--border-subtle);">
-          <div id="pdfInfo" style="display:none;padding:6px 12px;font-size:12px;color:var(--text-secondary);border-bottom:1px solid var(--border-subtle);"></div>
-          <div style="display:flex;align-items:center;gap:4px;padding:4px 12px;border-bottom:1px solid var(--border-subtle);">
-            <button id="prevPageBtn" class="btn" style="padding:2px 8px;font-size:11px;display:none;">Prev</button>
-            <span id="pageIndicator" style="font-size:12px;color:var(--text-secondary);">-</span>
-            <button id="nextPageBtn" class="btn" style="padding:2px 8px;font-size:11px;display:none;">Next</button>
-            <div style="width:1px;height:16px;background:var(--border-subtle);margin:0 4px;display:none;" id="zoomSep"></div>
-            <button id="zoomOutBtn" class="btn" style="padding:2px 6px;font-size:13px;display:none;">−</button>
-            <span id="zoomLabel" style="font-size:11px;color:var(--text-secondary);min-width:36px;text-align:center;display:none;">100%</span>
-            <button id="zoomInBtn" class="btn" style="padding:2px 6px;font-size:13px;display:none;">+</button>
-            <button id="fitWidthBtn" class="btn" style="padding:2px 8px;font-size:11px;display:none;">Fit</button>
+        <div>
+          <div id="pdfInfo"></div>
+          <div>
+            <button id="prevPageBtn" class="btn">Prev</button>
+            <span id="pageIndicator">-</span>
+            <button id="nextPageBtn" class="btn">Next</button>
+            <div id="zoomSep"></div>
+            <button id="zoomOutBtn" class="btn">−</button>
+            <span id="zoomLabel">100%</span>
+            <button id="zoomInBtn" class="btn">+</button>
+            <button id="fitWidthBtn" class="btn">Fit</button>
           </div>
-          <div id="pdfViewerWrap" style="flex:1;display:flex;overflow:hidden;">
-            <div id="pdfViewer" style="flex:1;display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto;background:rgba(0,0,0,0.15);">
+          <div id="pdfViewerWrap">
+            <div id="pdfViewer">
               <div class="empty-state">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
                 <p>Open a document to begin</p>
               </div>
             </div>
-            <div id="documentText" style="flex:1;display:none;padding:16px;overflow-y:auto;font-size:14px;line-height:1.7;color:var(--text-primary);white-space:pre-wrap;word-wrap:break-word;"></div>
+            <div id="documentText"></div>
           </div>
         </div>
 
         <!-- Right: Sentences -->
-        <div style="width:380px;min-width:380px;display:flex;flex-direction:column;overflow:hidden;">
-          <div id="textContainer" style="flex:1;overflow-y:auto;padding:12px;display:none;">
+        <div>
+          <div id="textContainer">
             <div id="sentenceList"></div>
           </div>
-          <div id="emptyState" style="flex:1;display:flex;align-items:center;justify-content:center;">
+          <div id="emptyState">
             <div class="empty-state">
               <p>Extract text to see sentences</p>
             </div>
@@ -86,7 +86,7 @@
       </div>
 
       <!-- Transport Bar -->
-      <div id="transport" class="transport-bar" style="display:none;">
+      <div id="transport" class="transport-bar">
         <button id="jumpBackBtn" class="transport-btn" disabled title="Jump back 5">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M12.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0019 16V8a1 1 0 00-1.6-.8l-5.333 4zM4.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0011 16V8a1 1 0 00-1.6-.8l-5.334 4z"/></svg>
         </button>
@@ -105,13 +105,13 @@
         <div class="scrubber" id="scrubber">
           <div class="scrubber-fill" id="scrubberFill"></div>
         </div>
-        <span id="sentenceCounter" style="font-size:11px;color:var(--text-tertiary);white-space:nowrap;min-width:60px;text-align:right;">0 / 0</span>
-        <div style="width:1px;height:20px;background:var(--border-subtle);"></div>
-        <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--text-secondary);">
+        <span id="sentenceCounter">0 / 0</span>
+        <div></div>
+        <label>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/></svg>
-          <input type="range" id="volumeSlider" min="0" max="1" step="0.1" value="1" style="width:60px;">
+          <input type="range" id="volumeSlider" min="0" max="1" step="0.1" value="1">
         </label>
-        <select id="speedSelect" class="input" style="width:auto;padding:2px 20px 2px 6px;font-size:11px;">
+        <select id="speedSelect" class="input">
           <option value="0.5">0.5×</option>
           <option value="0.75">0.75×</option>
           <option value="1" selected>1×</option>
@@ -122,10 +122,10 @@
           <option value="2.5">2.5×</option>
           <option value="3">3×</option>
         </select>
-        <select id="voiceSelect" class="input" style="width:auto;padding:2px 20px 2px 6px;font-size:11px;max-width:160px;">
+        <select id="voiceSelect" class="input">
           <option value="en-US-JennyNeural">Jenny (US Female)</option>
         </select>
-        <button id="speedTrainBtn" class="btn" style="padding:2px 8px;font-size:11px;" title="Speed trainer: gradually increases speed">
+        <button id="speedTrainBtn" class="btn" title="Speed trainer: gradually increases speed">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
           Train
         </button>
@@ -134,20 +134,20 @@
   </div>
 
   <!-- Shortcuts Modal -->
-  <div id="shortcutsModal" class="modal" style="display:none;">
-    <div class="modal-content" style="max-width:400px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
-        <span style="font-weight:600;font-size:14px;">Keyboard Shortcuts</span>
-        <button id="closeShortcuts" class="btn" style="padding:2px 8px;font-size:11px;">Close</button>
+  <div id="shortcutsModal" class="modal">
+    <div class="modal-content">
+      <div>
+        <span>Keyboard Shortcuts</span>
+        <button id="closeShortcuts" class="btn">Close</button>
       </div>
-      <div style="display:grid;grid-template-columns:auto 1fr;gap:8px 16px;font-size:13px;">
-        <span style="color:var(--accent);font-family:monospace;">Space</span><span>Play / Pause</span>
-        <span style="color:var(--accent);font-family:monospace;">→</span><span>Next sentence</span>
-        <span style="color:var(--accent);font-family:monospace;">←</span><span>Previous sentence</span>
-        <span style="color:var(--accent);font-family:monospace;">↑</span><span>Jump forward 5</span>
-        <span style="color:var(--accent);font-family:monospace;">↓</span><span>Jump back 5</span>
-        <span style="color:var(--accent);font-family:monospace;">S</span><span>Toggle play/pause</span>
-        <span style="color:var(--accent);font-family:monospace;">?</span><span>Show shortcuts</span>
+      <div>
+        <span>Space</span><span>Play / Pause</span>
+        <span>→</span><span>Next sentence</span>
+        <span>←</span><span>Previous sentence</span>
+        <span>↑</span><span>Jump forward 5</span>
+        <span>↓</span><span>Jump back 5</span>
+        <span>S</span><span>Toggle play/pause</span>
+        <span>?</span><span>Show shortcuts</span>
       </div>
     </div>
   </div>
