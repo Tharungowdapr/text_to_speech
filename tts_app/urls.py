@@ -30,6 +30,7 @@ urlpatterns = [
 
     # Serve audio files
     path("api/audio/<str:filename>/", views.api_serve_audio, name="api_serve_audio"),
+    path("api/audio/<str:filename>", views.api_serve_audio, name="api_serve_audio_noslash"),
 
     # Saved texts
     path("api/save-text/", views.api_save_text, name="api_save_text"),
