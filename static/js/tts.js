@@ -128,7 +128,7 @@
         file = d.file;
       }
       stop();
-      audio = new Audio('/static/audio/' + file);
+      audio = new Audio('/api/audio/' + file);
       audio.volume = parseFloat(els.vol.value);
       audio.playbackRate = parseFloat(els.speed.value);
       audio.play().catch(() => {});

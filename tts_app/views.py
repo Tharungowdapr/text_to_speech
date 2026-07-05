@@ -251,6 +251,17 @@ def api_tts_stream(request):
     return JsonResponse({"file": filename})
 
 
+@login_required
+def api_serve_audio(request, filename):
+    """Serve generated audio files from AUDIO_DIR"""
+    filepath = os.path.join(settings.AUDIO_DIR, filename)
+    if not os.path.exists(filepath):
+        return JsonResponse({"error": "Not found"}, status=404)
+    response = FileResponse(open(filepath, "rb"), content_type="audio/mpeg")
+    response["Content-Disposition"] = f'inline; filename="{filename}"'
+    return response
+
+
 @csrf_exempt
 @login_required
 def api_tts_batch(request):

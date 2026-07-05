@@ -28,6 +28,9 @@ urlpatterns = [
     path("api/languages/", views.api_languages, name="api_languages"),
     path("api/voices/", views.api_voices, name="api_voices"),
 
+    # Serve audio files
+    path("api/audio/<str:filename>/", views.api_serve_audio, name="api_serve_audio"),
+
     # Saved texts
     path("api/save-text/", views.api_save_text, name="api_save_text"),
     path("api/delete-text/<text_id>/", views.api_delete_text, name="api_delete_text"),
