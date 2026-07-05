@@ -71,8 +71,8 @@ LOGIN_URL = "/login/"
 LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/"
 
-UPLOAD_DIR = BASE_DIR / "static" / "uploads"
-AUDIO_DIR = BASE_DIR / "static" / "audio"
+UPLOAD_DIR = Path(os.environ.get("DJANGO_UPLOAD_DIR", BASE_DIR / "static" / "uploads"))
+AUDIO_DIR = Path(os.environ.get("DJANGO_AUDIO_DIR", BASE_DIR / "static" / "audio"))
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(AUDIO_DIR, exist_ok=True)
 
