@@ -12,11 +12,10 @@ os.environ.setdefault("DJANGO_SSL", "false")
 # Apply pending migrations on cold start (idempotent)
 import django
 django.setup()
-from django.core.management import call_command
-try:
+import os
+if os.environ.get("DATABASE_URL"):
+    from django.core.management import call_command
     call_command("migrate", "--noinput")
-except Exception:
-    pass  # fail silently if DB not available
 
 from django.core.wsgi import get_wsgi_application
 from django.contrib.staticfiles.handlers import StaticFilesHandler
