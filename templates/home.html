@@ -8,67 +8,26 @@
 
     <main class="main-content">
       <div class="toolbar">
-        <span class="toolbar-title">PDF to Audio Converter</span>
+        <span class="toolbar-title">Home</span>
       </div>
-      <div class="content-area" style="display:flex;flex-direction:column;gap:28px;">
+      <div class="content-area" style="display:flex;flex-direction:column;gap:20px;padding:32px 40px;">
 
-        <!-- Hero -->
-        <div style="text-align:center;padding:32px 20px 16px;">
-          <div style="font-size:28px;font-weight:700;color:var(--text-primary);margin-bottom:8px;">Turn PDFs into Speech</div>
-          <div style="font-size:14px;color:var(--text-secondary);max-width:500px;margin:0 auto;line-height:1.6;">
-            Upload a PDF, extract text, and listen with synchronized page tracking, voice selection, and speed training.
+        <!-- Two main options -->
+        <button onclick="window.location.href='/reader/'" class="btn" style="display:flex;align-items:center;gap:16px;padding:28px 24px;border-radius:10px;border:1px solid var(--border-subtle);background:var(--bg-glass);cursor:pointer;font-size:15px;color:var(--text-primary);transition:border-color 0.15s,background 0.15s;text-align:left;" onmouseover="this.style.borderColor='var(--border-strong)';this.style.background='var(--bg-glass-hover)'" onmouseout="this.style.borderColor='var(--border-subtle)';this.style.background='var(--bg-glass)'">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5" style="flex-shrink:0;"><path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+          <div>
+            <div style="font-weight:600;font-size:15px;">PDF Reader</div>
+            <div style="font-size:12px;color:var(--text-secondary);margin-top:2px;">Extract text from PDFs and listen with synchronized playblack</div>
           </div>
-          <a href="/reader/" class="btn btn-accent" style="margin-top:20px;padding:8px 28px;font-size:14px;text-decoration:none;display:inline-flex;">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
-            Get Started
-          </a>
-        </div>
+        </button>
 
-        <!-- Feature Cards -->
-        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;">
-          <div class="feature-card">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
-            <div>
-              <div style="font-weight:600;font-size:13px;color:var(--text-primary);">PDF Reader with Audio</div>
-              <div style="font-size:12px;color:var(--text-secondary);line-height:1.5;">Upload any PDF, extract text by page, and listen with synchronized sentence highlighting and auto page-turning.</div>
-            </div>
+        <button onclick="window.location.href='/text-to-speech/'" class="btn" style="display:flex;align-items:center;gap:16px;padding:28px 24px;border-radius:10px;border:1px solid var(--border-subtle);background:var(--bg-glass);cursor:pointer;font-size:15px;color:var(--text-primary);transition:border-color 0.15s,background 0.15s;text-align:left;" onmouseover="this.style.borderColor='var(--border-strong)';this.style.background='var(--bg-glass-hover)'" onmouseout="this.style.borderColor='var(--border-subtle)';this.style.background='var(--bg-glass)'">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.5" style="flex-shrink:0;"><path d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>
+          <div>
+            <div style="font-weight:600;font-size:15px;">Text to Speech</div>
+            <div style="font-size:12px;color:var(--text-secondary);margin-top:2px;">Type or paste text and convert it to audio</div>
           </div>
-          <div class="feature-card">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>
-            <div>
-              <div style="font-weight:600;font-size:13px;color:var(--text-primary);">38 Voices</div>
-              <div style="font-size:12px;color:var(--text-secondary);line-height:1.5;">Choose from male, female, and multilingual voices across US, UK, AU, IN, and more accents.</div>
-            </div>
-          </div>
-          <div class="feature-card">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-            <div>
-              <div style="font-weight:600;font-size:13px;color:var(--text-primary);">Speed Trainer</div>
-              <div style="font-size:12px;color:var(--text-secondary);line-height:1.5;">Gradually increase playback speed every 3 sentences to train listening comprehension.</div>
-            </div>
-          </div>
-          <div class="feature-card">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-            <div>
-              <div style="font-weight:600;font-size:13px;color:var(--text-primary);">Save & Resume</div>
-              <div style="font-size:12px;color:var(--text-secondary);line-height:1.5;">Bookmark your position, save texts for later, and pick up where you left off.</div>
-            </div>
-          </div>
-          <div class="feature-card">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-            <div>
-              <div style="font-weight:600;font-size:13px;color:var(--text-primary);">Search & Export</div>
-              <div style="font-size:12px;color:var(--text-secondary);line-height:1.5;">Search within extracted text and export to plain text for further processing.</div>
-            </div>
-          </div>
-          <div class="feature-card">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>
-            <div>
-              <div style="font-weight:600;font-size:13px;color:var(--text-primary);">No Installation</div>
-              <div style="font-size:12px;color:var(--text-secondary);line-height:1.5;">Works in your browser with Docker deployment available for self-hosting.</div>
-            </div>
-          </div>
-        </div>
+        </button>
 
         <!-- Recent PDFs -->
         <div class="card" style="padding:0;">
