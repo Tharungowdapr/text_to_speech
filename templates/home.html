@@ -1,9 +1,6 @@
 {% extends "base.html" %}
 {% load static %}
 {% block title %}PDF to Audio{% endblock %}
-{% block head %}
-<style>#pdfInput { display:none; }</style>
-{% endblock %}
 {% block body %}
 <div class="app-shell">
   <div class="app-body">
@@ -13,93 +10,93 @@
       <div class="toolbar">
         <span class="toolbar-title">PDF to Audio Converter</span>
       </div>
-      <div class="content-area">
+      <div class="content-area" style="display:flex;flex-direction:column;gap:28px;">
 
         <!-- Hero -->
-        <div>
-          <div>Turn PDFs into Speech</div>
-          <div>
+        <div style="text-align:center;padding:32px 20px 16px;">
+          <div style="font-size:28px;font-weight:700;color:var(--text-primary);margin-bottom:8px;">Turn PDFs into Speech</div>
+          <div style="font-size:14px;color:var(--text-secondary);max-width:500px;margin:0 auto;line-height:1.6;">
             Upload a PDF, extract text, and listen with synchronized page tracking, voice selection, and speed training.
           </div>
-          <a href="/reader/" class="btn btn-accent">
+          <a href="/reader/" class="btn btn-accent" style="margin-top:20px;padding:8px 28px;font-size:14px;text-decoration:none;display:inline-flex;">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
             Get Started
           </a>
         </div>
 
         <!-- Feature Cards -->
-        <div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;">
           <div class="feature-card">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
             <div>
-              <div>PDF Reader with Audio</div>
-              <div>Upload any PDF, extract text by page, and listen with synchronized sentence highlighting and auto page-turning.</div>
+              <div style="font-weight:600;font-size:13px;color:var(--text-primary);">PDF Reader with Audio</div>
+              <div style="font-size:12px;color:var(--text-secondary);line-height:1.5;">Upload any PDF, extract text by page, and listen with synchronized sentence highlighting and auto page-turning.</div>
             </div>
           </div>
           <div class="feature-card">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>
             <div>
-              <div>38 Voices</div>
-              <div>Choose from male, female, and multilingual voices across US, UK, AU, IN, and more accents.</div>
+              <div style="font-weight:600;font-size:13px;color:var(--text-primary);">38 Voices</div>
+              <div style="font-size:12px;color:var(--text-secondary);line-height:1.5;">Choose from male, female, and multilingual voices across US, UK, AU, IN, and more accents.</div>
             </div>
           </div>
           <div class="feature-card">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
             <div>
-              <div>Speed Trainer</div>
-              <div>Gradually increase playback speed every 3 sentences to train listening comprehension.</div>
+              <div style="font-weight:600;font-size:13px;color:var(--text-primary);">Speed Trainer</div>
+              <div style="font-size:12px;color:var(--text-secondary);line-height:1.5;">Gradually increase playback speed every 3 sentences to train listening comprehension.</div>
             </div>
           </div>
           <div class="feature-card">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
             <div>
-              <div>Save & Resume</div>
-              <div>Bookmark your position, save texts for later, and pick up where you left off.</div>
+              <div style="font-weight:600;font-size:13px;color:var(--text-primary);">Save & Resume</div>
+              <div style="font-size:12px;color:var(--text-secondary);line-height:1.5;">Bookmark your position, save texts for later, and pick up where you left off.</div>
             </div>
           </div>
           <div class="feature-card">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
             <div>
-              <div>Search & Export</div>
-              <div>Search within extracted text and export to plain text for further processing.</div>
+              <div style="font-weight:600;font-size:13px;color:var(--text-primary);">Search & Export</div>
+              <div style="font-size:12px;color:var(--text-secondary);line-height:1.5;">Search within extracted text and export to plain text for further processing.</div>
             </div>
           </div>
           <div class="feature-card">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 15a4 4 0 004 4h9a5 5 0 10-.1-9.999 5.002 5.002 0 10-9.78 2.096A4.001 4.001 0 003 15z"/></svg>
             <div>
-              <div>No Installation</div>
-              <div>Works in your browser with Docker deployment available for self-hosting.</div>
+              <div style="font-weight:600;font-size:13px;color:var(--text-primary);">No Installation</div>
+              <div style="font-size:12px;color:var(--text-secondary);line-height:1.5;">Works in your browser with Docker deployment available for self-hosting.</div>
             </div>
           </div>
         </div>
 
         <!-- Recent PDFs -->
-        <div class="card">
-          <div>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-            <span>My PDFs</span>
+        <div class="card" style="padding:0;">
+          <div style="display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--border-subtle);">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="opacity:0.5;"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <span style="font-size:12px;font-weight:600;">My PDFs</span>
           </div>
-          <div id="recentList">
+          <div id="recentList" style="padding:8px;">
             {% if recent_pdfs %}
               {% for pdf in recent_pdfs %}
-              <div class="sentence-item" data-id="{{ pdf.id }}">
-                <div>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
-                  <div>
-                    <div>{{ pdf.original_name }}</div>
-                    <div>{{ pdf.uploaded_at|date:"Y-m-d" }}</div>
+              <div class="sentence-item" style="display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-radius:5px;" data-id="{{ pdf.id }}">
+                <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="flex-shrink:0;opacity:0.5;"><path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+                  <div style="min-width:0;">
+                    <div style="font-size:12.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ pdf.original_name }}</div>
+                    <div style="font-size:12px;color:var(--text-tertiary);">{{ pdf.uploaded_at|date:"Y-m-d" }}</div>
                   </div>
                 </div>
-                <div>
-                  <button onclick="window.location.href='/reader/?path={{ pdf.stored_path|urlencode }}'" class="btn btn-accent">Open</button>
-                  <button onclick="removePdf('{{ pdf.id }}')" class="btn">
+                <div style="display:flex;gap:4px;flex-shrink:0;">
+                  <button onclick="window.location.href='/reader/?path={{ pdf.stored_path|urlencode }}'" class="btn btn-accent" style="padding:3px 10px;font-size:11px;">Open</button>
+                  <button onclick="removePdf('{{ pdf.id }}')" class="btn" style="padding:3px 8px;font-size:11px;">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
                   </button>
                 </div>
               </div>
               {% endfor %}
             {% else %}
-              <div>No PDFs yet. Upload one to get started.</div>
+              <div style="text-align:center;padding:28px 16px;color:var(--text-tertiary);font-size:13px;">No PDFs yet. Upload one to get started.</div>
             {% endif %}
           </div>
         </div>
@@ -107,7 +104,7 @@
     </main>
   </div>
 
-  <input type="file" id="pdfInput" accept=".pdf">
+  <input type="file" id="pdfInput" accept=".pdf" style="display:none;">
 </div>
 {% endblock %}
 {% block scripts %}
