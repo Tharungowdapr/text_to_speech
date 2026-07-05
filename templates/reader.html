@@ -1,6 +1,13 @@
 {% extends "base.html" %}
 {% load static %}
 {% block title %}PDF Reader{% endblock %}
+{% block head %}
+<style>
+#pdfInfo, #prevPageBtn, #nextPageBtn, #zoomOutBtn, #zoomInBtn, #zoomLabel, #zoomSep, #fitWidthBtn,
+#documentText, #textContainer, #transport, #batchProgress, #shortcutsModal, #formatBadge { display:none; }
+#pdfInputReader { display:none; }
+</style>
+{% endblock %}
 {% block body %}
 <div class="app-shell">
   <div class="app-body">

@@ -1,6 +1,9 @@
 {% extends "base.html" %}
 {% load static %}
 {% block title %}PDF to Audio{% endblock %}
+{% block head %}
+<style>#pdfInput { display:none; }</style>
+{% endblock %}
 {% block body %}
 <div class="app-shell">
   <div class="app-body">

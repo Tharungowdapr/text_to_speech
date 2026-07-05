@@ -5,10 +5,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}PDF to Audio Converter{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'css/style.css' %}">
+  {% block head %}{% endblock %}
 </head>
 <body>
   {% block body %}{% endblock %}
-  <div id="toast"></div>
+  <div id="toast" class="toast"></div>
   <script src="{% static 'js/main.js' %}"></script>
   {% block scripts %}{% endblock %}
   <script>
@@ -20,10 +22,10 @@
       var el = document.getElementById('userMenu');
       if (!el) return;
       if (d.authenticated) {
-        el.innerHTML = '<span>' + d.username + '</span>'
-          + '<button onclick="fetch(\'/api/logout/\',{method:\'POST\',headers:{\'X-CSRFToken\':getCSRFToken()}}).then(()=>location.href=\'/\')">Sign Out</button>';
+        el.innerHTML = '<span style="font-size:12px;color:var(--text-secondary);">' + d.username + '</span>'
+          + '<button onclick="fetch(\'/api/logout/\',{method:\'POST\',headers:{\'X-CSRFToken\':getCSRFToken()}}).then(()=>location.href=\'/\')" class="btn" style="padding:2px 8px;font-size:11px;">Sign Out</button>';
       } else {
-        el.innerHTML = '<a href="/login/">Sign In</a>';
+        el.innerHTML = '<a href="/login/" class="btn" style="padding:2px 8px;font-size:11px;text-decoration:none;">Sign In</a>';
       }
     };
     x.send();

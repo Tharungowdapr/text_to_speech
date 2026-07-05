@@ -5,8 +5,31 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Register - PDF to Audio</title>
-  
-  
+  <link rel="stylesheet" href="{% static 'css/style.css' %}">
+  <style>
+    .auth-page {
+      display:flex;align-items:center;justify-content:center;min-height:100vh;
+      background:var(--bg-primary);
+    }
+    .auth-card {
+      background:var(--bg-secondary);border:1px solid var(--border-subtle);
+      border-radius:12px;padding:32px;width:360px;max-width:90%;
+    }
+    .auth-card h1 { font-size:22px;font-weight:700;margin:0 0 4px;color:var(--text-primary); }
+    .auth-card p.sub { font-size:12px;color:var(--text-secondary);margin:0 0 24px; }
+    .auth-field { margin-bottom:16px; }
+    .auth-field label {
+      display:block;font-size:12px;font-weight:600;color:var(--text-secondary);
+      margin-bottom:4px;
+    }
+    .auth-field input {
+      width:100%;padding:8px 12px;border:1px solid var(--border-subtle);
+      border-radius:6px;background:rgba(0,0,0,0.25);color:var(--text-primary);
+      font-size:15px;outline:none;transition:border-color 0.15s;
+    }
+    .auth-field input:focus { border-color:var(--accent); }
+    .auth-error { color:var(--error); font-size:12px; margin-bottom:12px; display:none; }
+  </style>
 </head>
 <body>
   <div class="auth-page">
@@ -26,9 +49,9 @@
         <label>Confirm Password</label>
         <input id="regPass2" type="password" autocomplete="new-password">
       </div>
-      <button id="regBtn" class="btn btn-accent">Create Account</button>
-      <div>
-        Already have an account? <a href="/login/">Sign In</a>
+      <button id="regBtn" class="btn btn-accent" style="width:100%;justify-content:center;padding:8px;font-size:15px;">Create Account</button>
+      <div style="text-align:center;margin-top:16px;font-size:12px;color:var(--text-tertiary);">
+        Already have an account? <a href="/login/" style="color:var(--accent);text-decoration:none;">Sign In</a>
       </div>
     </div>
   </div>
