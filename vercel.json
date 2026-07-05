@@ -1,9 +1,4 @@
 {
-  "functions": {
-    "api/index.py": {
-      "includeFiles": "static/**"
-    }
-  },
   "builds": [
     {
       "src": "api/index.py",

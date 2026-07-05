@@ -1,5 +1,6 @@
 import os
 import sys
+import mimetypes
 
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
@@ -9,15 +10,37 @@ os.environ.setdefault("DJANGO_ALLOWED_HOSTS", ".vercel.app")
 os.environ.setdefault("DJANGO_CSRF_ORIGINS", "https://*.vercel.app")
 os.environ.setdefault("DJANGO_SSL", "false")
 
-# Apply pending migrations on cold start (idempotent)
 import django
 django.setup()
-import os
-if os.environ.get("DATABASE_URL"):
-    from django.core.management import call_command
-    call_command("migrate", "--noinput")
 
-from django.core.wsgi import get_wsgi_application
-from django.contrib.staticfiles.handlers import StaticFilesHandler
+static_root = os.path.join(project_root, "static")
 
-app = StaticFilesHandler(get_wsgi_application())
+
+class StaticFileHandler:
+    def __call__(self, environ, start_response):
+        path = environ.get("PATH_INFO", "/")
+        if path.startswith("/static/"):
+            file_path = os.path.join(static_root, path[len("/static/"):])
+            file_path = os.path.normpath(file_path)
+            if file_path.startswith(static_root) and os.path.isfile(file_path):
+                content_type, _ = mimetypes.guess_type(file_path)
+                if content_type is None:
+                    content_type = "application/octet-stream"
+                try:
+                    with open(file_path, "rb") as f:
+                        data = f.read()
+                    headers = [
+                        ("Content-Type", content_type),
+                        ("Content-Length", str(len(data))),
+                        ("Cache-Control", "public, max-age=31536000"),
+                    ]
+                    start_response("200 OK", headers)
+                    return [data]
+                except Exception:
+                    pass
+
+        from django.core.wsgi import get_wsgi_application
+        return get_wsgi_application()(environ, start_response)
+
+
+app = StaticFileHandler()
