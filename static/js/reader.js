@@ -361,7 +361,7 @@
   }
 
   function buildTtsUrl(text, voice) {
-    return '/api/tts-stream/?text=' + encodeURIComponent(text) + '&voice=' + encodeURIComponent(voice || els.voiceSelect.value);
+    return '/api/tts-stream/?text=' + encodeURIComponent(text) + '&voice=' + encodeURIComponent(voice || (els.voiceSelect && els.voiceSelect.value) || 'en-US-JennyNeural');
   }
 
   function preloadNextAudio() {
@@ -376,17 +376,21 @@
     nextAudio.load();
   }
 
+  let onEndHandler = null;
+
   function play() {
     var text = getSentenceText(sentences[cur]);
     if (!text) { next(); return; }
     try {
-      var voice = els.voiceSelect.value;
+      var voice = els.voiceSelect && els.voiceSelect.value ? els.voiceSelect.value : 'en-US-JennyNeural';
       stop();
       audio.src = buildTtsUrl(text, voice);
+      audio.load();
       audio.volume = parseFloat(els.vol.value);
       audio.playbackRate = parseFloat(els.speed.value);
-      var onEnd = function() { markCompleted(cur); next(); };
-      audio.addEventListener('ended', onEnd);
+      if (onEndHandler) audio.removeEventListener('ended', onEndHandler);
+      onEndHandler = function() { markCompleted(cur); next(); };
+      audio.addEventListener('ended', onEndHandler);
       audio.play().catch(function(e) {
         showToast('Playback failed', 'error');
         playing = false;
