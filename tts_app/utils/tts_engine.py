@@ -2,7 +2,6 @@ import os
 import uuid
 import asyncio
 import io
-import threading
 from django.conf import settings
 
 VOICES = {
@@ -52,26 +51,14 @@ FALLBACK_LANG_MAP = {
     "ru": "ru", "ar": "ar", "hi": "hi",
 }
 
-_loop = None
-_loop_lock = threading.Lock()
-
-def _get_loop():
-    global _loop
-    if _loop is None:
-        with _loop_lock:
-            if _loop is None:
-                _loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(_loop)
-    return _loop
 
 def _run_async(coro):
-    loop = _get_loop()
+    """Run async coroutine in a new event loop - safe for serverless"""
+    loop = asyncio.new_event_loop()
     try:
         return loop.run_until_complete(coro)
-    except RuntimeError:
-        loop = asyncio.new_event_loop()
-        _loop = loop
-        return loop.run_until_complete(coro)
+    finally:
+        loop.close()
 
 
 class TTSEngine:
@@ -176,7 +163,7 @@ class TTSEngine:
             tasks = [_one(i, t) for i, t in enumerate(texts) if t.strip()]
             await asyncio.gather(*tasks)
 
-        asyncio.run(_run())
+        _run_async(_run())
         return results
 
     @staticmethod
