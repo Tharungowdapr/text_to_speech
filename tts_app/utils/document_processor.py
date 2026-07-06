@@ -1,6 +1,4 @@
 import os
-import re
-import tempfile
 
 SUPPORTED = {".docx": "word", ".pptx": "powerpoint"}
 

@@ -161,7 +161,16 @@ def api_upload_batch_pdf(request):
 @login_required
 def api_my_pdfs(request):
     pdfs = UserPDF.objects.filter(user=request.user)
-    return JsonResponse([{"id": p.id, "name": p.original_name, "path": p.stored_path, "uploadedAt": p.uploaded_at.isoformat()} for p in pdfs], safe=False)
+    data = [
+        {
+            "id": p.id,
+            "name": p.original_name,
+            "path": p.stored_path,
+            "uploadedAt": p.uploaded_at.isoformat()
+        }
+        for p in pdfs
+    ]
+    return JsonResponse(data, safe=False)
 
 
 @csrf_exempt
@@ -343,7 +352,16 @@ def api_delete_text(request, text_id):
 @login_required
 def api_get_texts(request):
     texts = SavedText.objects.filter(user=request.user)
-    return JsonResponse([{"id": t.id, "title": t.title, "content": t.content, "createdAt": t.created_at.isoformat()} for t in texts], safe=False)
+    data = [
+        {
+            "id": t.id,
+            "title": t.title,
+            "content": t.content,
+            "createdAt": t.created_at.isoformat()
+        }
+        for t in texts
+    ]
+    return JsonResponse(data, safe=False)
 
 
 # ── Bookmarks ──
@@ -374,7 +392,16 @@ def api_get_bookmarks(request):
     bms = Bookmark.objects.filter(user=request.user)
     if pdf_path:
         bms = bms.filter(pdf_path=pdf_path)
-    return JsonResponse([{"id": b.id, "sentenceIndex": b.sentence_index, "label": b.label, "timestamp": b.timestamp.isoformat()} for b in bms], safe=False)
+    data = [
+        {
+            "id": b.id,
+            "sentenceIndex": b.sentence_index,
+            "label": b.label,
+            "timestamp": b.timestamp.isoformat()
+        }
+        for b in bms
+    ]
+    return JsonResponse(data, safe=False)
 
 
 @csrf_exempt

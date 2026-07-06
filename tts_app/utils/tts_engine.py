@@ -142,6 +142,7 @@ class TTSEngine:
 
         async def _run():
             sem = asyncio.Semaphore(max_concurrent)
+
             async def _one(idx, text):
                 async with sem:
                     fname = f"{uuid.uuid4().hex}.mp3"
@@ -154,6 +155,7 @@ class TTSEngine:
                         from gtts import gTTS
                         lang = voice_id if voice_id in FALLBACK_LANG_MAP else "en"
                         loop = asyncio.get_running_loop()
+
                         def _sync_save():
                             tts = gTTS(text=text, lang=lang, slow=False)
                             tts.save(fpath)
