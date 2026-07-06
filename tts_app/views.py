@@ -309,6 +309,13 @@ def api_tts_batch(request):
     voice = data.get("voice", "en-US-JennyNeural")
     if not texts:
         return JsonResponse({"error": "No texts"}, status=400)
+    
+    # Skip disk-based batch generation on Vercel (ephemeral /tmp)
+    import os
+    if os.environ.get("VERCEL"):
+        logger.warning("Skipping batch audio generation on Vercel (ephemeral filesystem)")
+        return JsonResponse({"mapping": {}, "count": 0, "skipped": True, "reason": "vercel_ephemeral_fs"})
+    
     texts_flat = [t["text"] if isinstance(t, dict) else t for t in texts]
     mapping = TTSEngine.generate_audio_batch(texts_flat, voice)
     return JsonResponse({"mapping": {str(k): v for k, v in mapping.items()}, "count": len(mapping)})
