@@ -481,12 +481,9 @@ def api_serve_pdf(request, pdf_path):
     filepath = os.path.join(settings.UPLOAD_DIR, os.path.basename(pdf_path))
     if os.path.exists(filepath):
         return FileResponse(open(filepath, "rb"), content_type="application/pdf")
-    try:
-        pdf = UserPDF.objects.filter(stored_path=os.path.basename(pdf_path)).first()
-        if pdf and pdf.file_data:
-            return HttpResponse(pdf.file_data, content_type="application/pdf")
-    except Exception:
-        pass
+    pdf = UserPDF.objects.filter(stored_path=os.path.basename(pdf_path)).first()
+    if pdf and pdf.file_data:
+        return HttpResponse(pdf.file_data, content_type="application/pdf")
     return JsonResponse({"error": "File not found"}, status=404)
 
 

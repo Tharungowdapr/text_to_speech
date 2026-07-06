@@ -1,7 +1,8 @@
 (function() {
   let pdfPath = null, pdfFileName = '', sentences = [], audioMap = {}, cur = 0, playing = false;
-  let audio = null, speedTrain = false, trainTimer = null, pdfDoc = null;
+  let audio = null, nextAudio = null, speedTrain = false, trainTimer = null, pdfDoc = null;
   let completedSentences = 0;
+  let localPdfUrl = null;
 
   const els = {
     pdfInput: document.getElementById('pdfInputReader'),
@@ -47,6 +48,8 @@
 
   els.pdfInput.addEventListener('change', async function(e) {
     var f = e.target.files?.[0]; if (!f) return;
+    if (localPdfUrl) URL.revokeObjectURL(localPdfUrl);
+    localPdfUrl = URL.createObjectURL(f);
     var fd = new FormData(); fd.append('file', f);
     var r = await fetch('/api/upload-pdf/', { method: 'POST', body: fd });
     var d = await r.json();
@@ -142,9 +145,15 @@
     if (typeof pdfjsLib === 'undefined') { return; }
     els.pdfViewer.innerHTML = '<div class="spinner" style="width:24px;height:24px;border:2px solid var(--border-subtle);border-top-color:var(--accent);border-radius:50%;"></div>';
     try {
-      var r = await fetch('/api/serve-pdf/' + encodeURIComponent(path) + '/');
-      var blob = await r.blob();
-      var url = URL.createObjectURL(blob);
+      var url;
+      if (localPdfUrl) {
+        url = localPdfUrl;
+      } else {
+        var r = await fetch('/api/serve-pdf/' + encodeURIComponent(path) + '/');
+        if (!r.ok) throw new Error('Server returned ' + r.status);
+        var blob = await r.blob();
+        url = URL.createObjectURL(blob);
+      }
       pdfDoc = await pdfjsLib.getDocument(url).promise;
       els.pdfInfo.textContent = pdfFileName + ' (' + pdfDoc.numPages + ' pages)';
       els.pdfInfo.style.display = 'block';
@@ -291,10 +300,8 @@
         els.batchProgress.style.display = 'none';
         els.batchProgressBar.style.width = '0%';
       }
-      showToast(Object.keys(audioMap).length + ' audio files ready', 'success');
     } catch(e) {
       if (els.batchProgress) els.batchProgress.style.display = 'none';
-      showToast('Audio pre-generation failed (playback will generate on-demand)', 'error');
     }
     if (els.extractText) els.extractText.textContent = 'Extract';
   }
@@ -376,21 +383,55 @@
     } catch(e) {}
   }
 
+  function buildTtsUrl(text, voice) {
+    return '/api/tts-stream/?text=' + encodeURIComponent(text) + '&voice=' + encodeURIComponent(voice || els.voiceSelect.value);
+  }
+
+  function preloadNextAudio() {
+    if (nextAudio) { nextAudio.src = ''; nextAudio = null; }
+    var nextIdx = cur + 1;
+    if (nextIdx >= sentences.length) return;
+    var text = getSentenceText(sentences[nextIdx]);
+    if (!text) return;
+    nextAudio = new Audio(buildTtsUrl(text));
+    nextAudio.volume = parseFloat(els.vol.value);
+    nextAudio.playbackRate = parseFloat(els.speed.value);
+    nextAudio.load();
+  }
+
   async function play() {
     var text = getSentenceText(sentences[cur]);
     if (!text) { next(); return; }
     try {
       var voice = els.voiceSelect.value;
       stop();
-      audio = new Audio('/api/tts-stream/?text=' + encodeURIComponent(text) + '&voice=' + encodeURIComponent(voice));
+      if (nextAudio && nextAudio.src) {
+        audio = nextAudio;
+        nextAudio = null;
+      } else {
+        audio = new Audio(buildTtsUrl(text, voice));
+      }
       audio.volume = parseFloat(els.vol.value);
       audio.playbackRate = parseFloat(els.speed.value);
       audio.play().catch(function(e) {
-        showToast('Audio playback failed: ' + (e.message || 'unknown error'), 'error');
+        showToast('Audio failed, retrying...', 'error');
+        audio = new Audio(buildTtsUrl(text, voice));
+        audio.volume = parseFloat(els.vol.value);
+        audio.playbackRate = parseFloat(els.speed.value);
+        audio.play().catch(function(e2) {
+          showToast('Audio playback failed: ' + (e2.message || 'unknown error'), 'error');
+        });
+        audio.addEventListener('ended', function() { markCompleted(cur); next(); });
       });
       audio.addEventListener('ended', function() { markCompleted(cur); next(); });
       if (!playing) { playing = true; updatePlayIcon(); }
+      preloadNextAudio();
     } catch(e) { showToast('Playback error', 'error'); }
+  }
+
+  function stop() {
+    if (audio) { audio.pause(); audio.src = ''; audio = null; }
+    if (nextAudio) { nextAudio.src = ''; nextAudio = null; }
   }
 
   function markCompleted(idx) {
@@ -402,8 +443,6 @@
       saveProgress();
     }
   }
-
-  function stop() { if (audio) { audio.pause(); audio = null; } }
 
   function togglePlay() {
     if (!sentences.length) return;

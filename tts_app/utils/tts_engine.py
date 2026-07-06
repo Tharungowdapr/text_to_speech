@@ -115,24 +115,37 @@ class TTSEngine:
 
     @staticmethod
     def generate_audio_stream(text: str, voice_id: str = "en-US-JennyNeural") -> tuple:
-        """Generate audio and return bytes directly for streaming response"""
         voice_info = VOICES.get(voice_id)
-        try:
-            if voice_info:
+        if voice_info:
+            try:
                 audio_bytes = _run_async(TTSEngine._edge_generate_stream(text, voice_id))
-            else:
+                if len(audio_bytes) >= 100:
+                    return audio_bytes, None
+            except Exception:
+                pass
+            try:
                 from gtts import gTTS
-                lang = voice_id if voice_id in FALLBACK_LANG_MAP else "en"
-                tts = gTTS(text=text, lang=lang, slow=False)
+                tts = gTTS(text=text, lang="en", slow=False)
                 audio_data = io.BytesIO()
                 tts.write_to_fp(audio_data)
                 audio_bytes = audio_data.getvalue()
-            
-            if len(audio_bytes) < 100:
-                return None, "Audio generation failed (empty output)"
-            return audio_bytes, None
-        except Exception as e:
-            return None, f"TTS failed: {e}"
+                if len(audio_bytes) >= 100:
+                    return audio_bytes, None
+            except Exception:
+                pass
+            return None, "Audio generation failed"
+        try:
+            from gtts import gTTS
+            lang = voice_id if voice_id in FALLBACK_LANG_MAP else "en"
+            tts = gTTS(text=text, lang=lang, slow=False)
+            audio_data = io.BytesIO()
+            tts.write_to_fp(audio_data)
+            audio_bytes = audio_data.getvalue()
+            if len(audio_bytes) >= 100:
+                return audio_bytes, None
+        except Exception:
+            pass
+        return None, "Audio generation failed"
 
     @staticmethod
     def generate_audio_batch(texts: list, voice_id: str = "en-US-JennyNeural", max_concurrent: int = 5) -> dict:
