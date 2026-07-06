@@ -190,6 +190,17 @@ def api_extract_text(request):
     if ext == ".pdf":
         with open(filepath, "rb") as fh:
             pdf_bytes = fh.read()
+        raw, sentences, num_pages, chapters = PDFProcessor.extract_text(pdf_bytes, force_ocr=force_ocr)
+        return JsonResponse({
+            "raw": raw,
+            "sentences": sentences,
+            "numPages": num_pages,
+            "chapters": chapters,
+            "format": "pdf",
+            "ocrUsed": force_ocr or (not raw.strip())
+        })
+    elif ext in DocumentProcessor.supported_formats():
+        content = DocumentProcessor.extract(filepath)
         sentences = [{"text": s, "page": 0} for s in PDFProcessor._split_sentences(content) if s.strip()]
         chapters = PDFProcessor._detect_chapters(content)
         return JsonResponse({
