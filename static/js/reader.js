@@ -412,7 +412,11 @@
       });
       playing = true;
       updatePlayIcon();
-      preloadNextAudio();
+      var onCanPlay = function() {
+        audio.removeEventListener('canplaythrough', onCanPlay);
+        preloadNextAudio();
+      };
+      audio.addEventListener('canplaythrough', onCanPlay);
     } catch(e) {
       showToast('Playback error', 'error');
     }
