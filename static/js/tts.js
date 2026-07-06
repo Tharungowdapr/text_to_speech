@@ -117,24 +117,39 @@
     audioMap = {};
   });
 
+  let currentPlayId = 0;
+
   async function play() {
     const text = sentences[cur];
     if (!text) { next(); return; }
     try {
       const voice = els.voiceSelect.value;
       stop();
-      audio.src = '/api/tts-stream/?text=' + encodeURIComponent(text) + '&voice=' + encodeURIComponent(voice);
-      audio.volume = parseFloat(els.vol.value);
-      audio.playbackRate = parseFloat(els.speed.value);
+      currentPlayId++;
+      const reqId = currentPlayId;
+      els.playIcon.innerHTML = '<div class="spinner" style="width:16px;height:16px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;"></div>';
+      
+      const r = await fetch('/api/tts-stream/?text=' + encodeURIComponent(text) + '&voice=' + encodeURIComponent(voice));
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const blob = await r.blob();
+      
+      if (reqId !== currentPlayId) return;
+      
+      audio.src = URL.createObjectURL(blob);
+      audio.volume = parseFloat(els.vol.value) || 1;
+      audio.playbackRate = parseFloat(els.speed.value) || 1;
+      
       audio.play().catch((e) => {
+        if (reqId !== currentPlayId) return;
         showToast('Audio playback failed: ' + (e.message || 'unknown error'), 'error');
         playing = false;
         updatePlayIcon();
       });
+      
       audio.addEventListener('ended', () => next());
       playing = true;
       updatePlayIcon();
-    } catch(e) { showToast('Playback error', 'error'); }
+    } catch(e) { showToast('Playback error', 'error'); playing = false; updatePlayIcon(); }
   }
 
   function stop() { audio.pause(); audio.src = ''; }
