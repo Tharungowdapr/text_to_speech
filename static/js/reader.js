@@ -1,6 +1,6 @@
 (function() {
   let pdfPath = null, pdfFileName = '', sentences = [], audioMap = {}, cur = 0, playing = false;
-  let audio = null, nextAudio = null, speedTrain = false, trainTimer = null, pdfDoc = null;
+  let nextAudio = null, speedTrain = false, trainTimer = null, pdfDoc = null;
   let completedSentences = 0;
   let localPdfUrl = null;
 
@@ -41,6 +41,8 @@
     pdfViewerWrap: document.getElementById('pdfViewerWrap'),
     documentText: document.getElementById('documentText'),
   };
+
+  var audio = new Audio();
 
   function enableTransport(enabled) { var v = !enabled; [els.playBtn, els.skipB, els.skipF, els.jumpB, els.jumpF].forEach(function(b) { b.disabled = v; }); }
 
@@ -374,40 +376,33 @@
     nextAudio.load();
   }
 
-  async function play() {
+  function play() {
     var text = getSentenceText(sentences[cur]);
     if (!text) { next(); return; }
     try {
       var voice = els.voiceSelect.value;
       stop();
-      if (nextAudio && nextAudio.src) {
-        audio = nextAudio;
-        nextAudio = null;
-      } else {
-        audio = new Audio(buildTtsUrl(text, voice));
-      }
+      audio.src = buildTtsUrl(text, voice);
       audio.volume = parseFloat(els.vol.value);
       audio.playbackRate = parseFloat(els.speed.value);
       var onEnd = function() { markCompleted(cur); next(); };
       audio.addEventListener('ended', onEnd);
       audio.play().catch(function(e) {
-        showToast('Audio failed, retrying...', 'error');
-        var retryAudio = new Audio(buildTtsUrl(text, voice));
-        retryAudio.volume = parseFloat(els.vol.value);
-        retryAudio.playbackRate = parseFloat(els.speed.value);
-        retryAudio.addEventListener('ended', onEnd);
-        retryAudio.play().catch(function(e2) {
-          showToast('Audio playback failed: ' + (e2.message || 'unknown error'), 'error');
-        });
-        audio = retryAudio;
+        showToast('Playback failed', 'error');
+        playing = false;
+        updatePlayIcon();
       });
-      if (!playing) { playing = true; updatePlayIcon(); }
+      playing = true;
+      updatePlayIcon();
       preloadNextAudio();
-    } catch(e) { showToast('Playback error', 'error'); }
+    } catch(e) {
+      showToast('Playback error', 'error');
+    }
   }
 
   function stop() {
-    if (audio) { audio.pause(); audio.src = ''; audio = null; }
+    audio.pause();
+    audio.src = '';
     if (nextAudio) { nextAudio.src = ''; nextAudio = null; }
   }
 
@@ -424,7 +419,7 @@
   function togglePlay() {
     if (!sentences.length) return;
     if (playing) { playing = false; stop(); updatePlayIcon(); }
-    else { playing = true; updatePlayIcon(); play(); }
+    else { play(); }
   }
 
   function next() {
