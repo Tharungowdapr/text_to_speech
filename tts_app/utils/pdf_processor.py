@@ -58,6 +58,8 @@ class PDFProcessor:
         except Exception:
             return ""
 
+    MAX_SENTENCE_CHARS = 150
+
     @staticmethod
     def _split_sentences(text: str) -> list:
         text = re.sub(r"\s+", " ", text).strip()
@@ -66,8 +68,39 @@ class PDFProcessor:
         for p in parts:
             p = p.strip()
             if len(p) > 1 and re.search(r"[a-zA-Z]", p):
-                result.append(p)
+                result.extend(PDFProcessor._cap_length(p))
         return result if result else ([text] if text else [])
+
+    @staticmethod
+    def _cap_length(text: str) -> list:
+        """Break an overly long chunk (e.g. a punctuation-free title page)
+        into TTS-safe pieces so a single request can't run long enough to
+        hit a serverless function timeout."""
+        if len(text) <= PDFProcessor.MAX_SENTENCE_CHARS:
+            return [text]
+        # Prefer splitting on commas/semicolons/pipes/newlines first
+        pieces = re.split(r"(?<=[,;|])\s+", text)
+        out = []
+        for piece in pieces:
+            piece = piece.strip()
+            if not piece:
+                continue
+            if len(piece) <= PDFProcessor.MAX_SENTENCE_CHARS:
+                out.append(piece)
+            else:
+                # Last resort: hard-wrap on word boundaries
+                words = piece.split(" ")
+                chunk = ""
+                for w in words:
+                    if len(chunk) + len(w) + 1 > PDFProcessor.MAX_SENTENCE_CHARS:
+                        if chunk:
+                            out.append(chunk.strip())
+                        chunk = w
+                    else:
+                        chunk = (chunk + " " + w).strip()
+                if chunk:
+                    out.append(chunk.strip())
+        return out if out else [text]
 
     @staticmethod
     def _detect_chapters(raw_text: str) -> list:

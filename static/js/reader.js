@@ -404,6 +404,12 @@
         els.scrubFill.style.transition = 'none';
         els.scrubFill.style.transform = 'scaleX(' + Math.min(pct / 100, 1) + ')';
       });
+      audio.addEventListener('error', function() {
+        if (requestId !== currentRequestId) return;
+        showToast('Audio load failed', 'error');
+        playing = false;
+        updatePlayIcon();
+      });
       audio.play().catch(function(e) {
         if (requestId !== currentRequestId) return;
         showToast('Playback failed', 'error');
