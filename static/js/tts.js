@@ -119,16 +119,9 @@
     const text = sentences[cur];
     if (!text) { next(); return; }
     try {
-      var file = audioMap[cur];
-      if (!file) {
-        const voice = els.voiceSelect.value;
-        const r = await fetch('/api/tts-stream/?text=' + encodeURIComponent(text) + '&voice=' + encodeURIComponent(voice));
-        const d = await r.json();
-        if (d.error) { showToast(d.error, 'error'); next(); return; }
-        file = d.file;
-      }
+      const voice = els.voiceSelect.value;
       stop();
-      audio = new Audio('/api/audio/' + file);
+      audio = new Audio('/api/tts-stream/?text=' + encodeURIComponent(text) + '&voice=' + encodeURIComponent(voice));
       audio.volume = parseFloat(els.vol.value);
       audio.playbackRate = parseFloat(els.speed.value);
       audio.play().catch(() => {});

@@ -245,10 +245,12 @@ def api_tts_stream(request):
     if not text.strip():
         return JsonResponse({"error": "No text"}, status=400)
 
-    filename, error = TTSEngine.generate_audio(text, voice)
+    audio_bytes, error = TTSEngine.generate_audio_stream(text, voice)
     if error:
         return JsonResponse({"error": error}, status=500)
-    return JsonResponse({"file": filename})
+    response = HttpResponse(audio_bytes, content_type="audio/mpeg")
+    response["Content-Disposition"] = 'inline; filename="tts.mp3"'
+    return response
 
 
 @login_required

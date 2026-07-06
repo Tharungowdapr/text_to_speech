@@ -1,6 +1,7 @@
 import os
 import uuid
 import asyncio
+import io
 from django.conf import settings
 
 VOICES = {
@@ -78,6 +79,38 @@ class TTSEngine:
         import edge_tts
         communicate = edge_tts.Communicate(text, voice_id)
         await communicate.save(filepath)
+
+    @staticmethod
+    async def _edge_generate_stream(text: str, voice_id: str) -> bytes:
+        """Generate audio and return bytes directly for streaming"""
+        import edge_tts
+        communicate = edge_tts.Communicate(text, voice_id)
+        audio_data = io.BytesIO()
+        async for chunk in communicate.stream():
+            if chunk["type"] == "audio":
+                audio_data.write(chunk["data"])
+        return audio_data.getvalue()
+
+    @staticmethod
+    def generate_audio_stream(text: str, voice_id: str = "en-US-JennyNeural") -> tuple:
+        """Generate audio and return bytes directly for streaming response"""
+        voice_info = VOICES.get(voice_id)
+        try:
+            if voice_info:
+                audio_bytes = asyncio.run(TTSEngine._edge_generate_stream(text, voice_id))
+            else:
+                from gtts import gTTS
+                lang = voice_id if voice_id in FALLBACK_LANG_MAP else "en"
+                tts = gTTS(text=text, lang=lang, slow=False)
+                audio_data = io.BytesIO()
+                tts.write_to_fp(audio_data)
+                audio_bytes = audio_data.getvalue()
+            
+            if len(audio_bytes) < 100:
+                return None, "Audio generation failed (empty output)"
+            return audio_bytes, None
+        except Exception as e:
+            return None, f"TTS failed: {e}"
 
     @staticmethod
     def generate_audio_batch(texts: list, voice_id: str = "en-US-JennyNeural", max_concurrent: int = 5) -> dict:

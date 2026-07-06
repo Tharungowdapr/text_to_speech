@@ -380,16 +380,9 @@
     var text = getSentenceText(sentences[cur]);
     if (!text) { next(); return; }
     try {
-      var file = audioMap[cur];
-      if (!file) {
-        var voice = els.voiceSelect.value;
-        var r = await fetch('/api/tts-stream/?text=' + encodeURIComponent(text) + '&voice=' + encodeURIComponent(voice));
-        var d = await r.json();
-        if (d.error) { showToast(d.error, 'error'); next(); return; }
-        file = d.file;
-      }
+      var voice = els.voiceSelect.value;
       stop();
-      audio = new Audio('/api/audio/' + file);
+      audio = new Audio('/api/tts-stream/?text=' + encodeURIComponent(text) + '&voice=' + encodeURIComponent(voice));
       audio.volume = parseFloat(els.vol.value);
       audio.playbackRate = parseFloat(els.speed.value);
       audio.play().catch(function() {});
