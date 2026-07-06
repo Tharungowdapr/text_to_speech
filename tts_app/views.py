@@ -7,6 +7,8 @@ import logging
 from datetime import datetime
 from urllib.parse import unquote
 
+logger = logging.getLogger(__name__)
+
 from django.shortcuts import render, redirect
 from django.http import JsonResponse, FileResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
