@@ -259,8 +259,6 @@ def api_search_text(request):
 
 @csrf_exempt
 def api_tts_stream(request):
-    if not request.user.is_authenticated:
-        return JsonResponse({"error": "Authentication required"}, status=401)
     text = request.GET.get("text", "")
     voice = request.GET.get("voice", "en-US-JennyNeural")
     if not text.strip():
