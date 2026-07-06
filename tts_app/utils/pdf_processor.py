@@ -1,19 +1,11 @@
 import re
 from io import BytesIO
-from pypdf import PdfReader
-
-try:
-    import pytesseract
-    from PIL import Image
-    import fitz
-    HAS_OCR = True
-except ImportError:
-    HAS_OCR = False
 
 
 class PDFProcessor:
     @staticmethod
     def extract_text(pdf_bytes: bytes, force_ocr: bool = False) -> tuple:
+        from pypdf import PdfReader
         reader = PdfReader(BytesIO(pdf_bytes))
         num_pages = len(reader.pages)
         raw_parts = []
@@ -23,7 +15,7 @@ class PDFProcessor:
             text = page.extract_text() or ""
             raw_parts.append(text)
 
-            if force_ocr or (not text.strip() and HAS_OCR):
+            if force_ocr or (not text.strip()):
                 text = PDFProcessor._ocr_page(pdf_bytes, page_num)
 
             if text.strip():
@@ -37,7 +29,11 @@ class PDFProcessor:
 
     @staticmethod
     def _ocr_page(pdf_bytes: bytes, page_num: int) -> str:
-        if not HAS_OCR:
+        try:
+            import fitz
+            from PIL import Image
+            import pytesseract
+        except ImportError:
             return ""
         try:
             doc = fitz.open(stream=pdf_bytes, filetype="pdf")

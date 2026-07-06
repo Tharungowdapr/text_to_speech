@@ -2,6 +2,7 @@ import os
 import uuid
 import asyncio
 import io
+import threading
 from django.conf import settings
 
 VOICES = {
@@ -51,6 +52,27 @@ FALLBACK_LANG_MAP = {
     "ru": "ru", "ar": "ar", "hi": "hi",
 }
 
+_loop = None
+_loop_lock = threading.Lock()
+
+def _get_loop():
+    global _loop
+    if _loop is None:
+        with _loop_lock:
+            if _loop is None:
+                _loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(_loop)
+    return _loop
+
+def _run_async(coro):
+    loop = _get_loop()
+    try:
+        return loop.run_until_complete(coro)
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        _loop = loop
+        return loop.run_until_complete(coro)
+
 
 class TTSEngine:
     @staticmethod
@@ -61,7 +83,7 @@ class TTSEngine:
         try:
             voice_info = VOICES.get(voice_id)
             if voice_info:
-                asyncio.run(TTSEngine._edge_generate(text, voice_id, filepath))
+                _run_async(TTSEngine._edge_generate(text, voice_id, filepath))
             else:
                 from gtts import gTTS
                 lang = voice_id if voice_id in FALLBACK_LANG_MAP else "en"
@@ -97,7 +119,7 @@ class TTSEngine:
         voice_info = VOICES.get(voice_id)
         try:
             if voice_info:
-                audio_bytes = asyncio.run(TTSEngine._edge_generate_stream(text, voice_id))
+                audio_bytes = _run_async(TTSEngine._edge_generate_stream(text, voice_id))
             else:
                 from gtts import gTTS
                 lang = voice_id if voice_id in FALLBACK_LANG_MAP else "en"
