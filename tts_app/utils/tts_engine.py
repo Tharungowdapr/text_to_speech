@@ -2,7 +2,10 @@ import os
 import uuid
 import asyncio
 import io
+import logging
 from django.conf import settings
+
+logger = logging.getLogger(__name__)
 
 VOICES = {
     "en-US-JennyNeural": {"lang": "en", "gender": "Female", "name": "Jenny (US Female)"},
@@ -108,8 +111,9 @@ class TTSEngine:
                 audio_bytes = _run_async(TTSEngine._edge_generate_stream(text, voice_id))
                 if len(audio_bytes) >= 100:
                     return audio_bytes, None
-            except Exception:
-                pass
+            except Exception as e:
+                logger.exception("edge_tts generation failed for voice=%s", voice_id)
+                edge_error = str(e)
             try:
                 from gtts import gTTS
                 tts = gTTS(text=text, lang="en", slow=False)
@@ -118,9 +122,10 @@ class TTSEngine:
                 audio_bytes = audio_data.getvalue()
                 if len(audio_bytes) >= 100:
                     return audio_bytes, None
-            except Exception:
-                pass
-            return None, "Audio generation failed"
+            except Exception as e:
+                logger.exception("gTTS fallback also failed")
+                return None, f"edge_tts failed ({edge_error}); gTTS fallback failed ({e})"
+            return None, f"edge_tts failed: {edge_error}"
         try:
             from gtts import gTTS
             lang = voice_id if voice_id in FALLBACK_LANG_MAP else "en"
@@ -130,9 +135,10 @@ class TTSEngine:
             audio_bytes = audio_data.getvalue()
             if len(audio_bytes) >= 100:
                 return audio_bytes, None
-        except Exception:
-            pass
-        return None, "Audio generation failed"
+        except Exception as e:
+            logger.exception("gTTS generation failed for voice=%s", voice_id)
+            return None, f"gTTS failed: {e}"
+        return None, "Audio generation failed (empty output)"
 
     @staticmethod
     def generate_audio_batch(texts: list, voice_id: str = "en-US-JennyNeural", max_concurrent: int = 5) -> dict:

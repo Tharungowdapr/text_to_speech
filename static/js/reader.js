@@ -382,18 +382,31 @@
   function play() {
     var text = getSentenceText(sentences[cur]);
     if (!text) { next(); return; }
-    try {
-      var voice = els.voiceSelect && els.voiceSelect.value ? els.voiceSelect.value : 'en-US-JennyNeural';
-      stop();
-      currentRequestId++;
-      var requestId = currentRequestId;
-      audio.src = buildTtsUrl(text, voice);
+    var voice = els.voiceSelect && els.voiceSelect.value ? els.voiceSelect.value : 'en-US-JennyNeural';
+    stop();
+    currentRequestId++;
+    var requestId = currentRequestId;
+    playing = true;
+    updatePlayIcon();
+    fetch(buildTtsUrl(text, voice)).then(function(r) {
+      if (requestId !== currentRequestId) return null;
+      if (!r.ok) {
+        return r.json().catch(function() { return {}; }).then(function(d) {
+          throw new Error(d.error || ('HTTP ' + r.status));
+        });
+      }
+      return r.blob();
+    }).then(function(blob) {
+      if (!blob || requestId !== currentRequestId) return;
+      var url = URL.createObjectURL(blob);
+      audio.src = url;
       audio.load();
       audio.volume = parseFloat(els.vol.value);
       audio.playbackRate = parseFloat(els.speed.value);
       if (onEndHandler) audio.removeEventListener('ended', onEndHandler);
       onEndHandler = function() {
         if (requestId !== currentRequestId) return;
+        URL.revokeObjectURL(url);
         markCompleted(cur); next();
       };
       audio.addEventListener('ended', onEndHandler);
@@ -404,28 +417,23 @@
         els.scrubFill.style.transition = 'none';
         els.scrubFill.style.transform = 'scaleX(' + Math.min(pct / 100, 1) + ')';
       });
-      audio.addEventListener('error', function() {
-        if (requestId !== currentRequestId) return;
-        showToast('Audio load failed', 'error');
-        playing = false;
-        updatePlayIcon();
-      });
       audio.play().catch(function(e) {
         if (requestId !== currentRequestId) return;
-        showToast('Playback failed', 'error');
+        showToast('Playback failed: ' + e.message, 'error');
         playing = false;
         updatePlayIcon();
       });
-      playing = true;
-      updatePlayIcon();
       var onCanPlay = function() {
         audio.removeEventListener('canplaythrough', onCanPlay);
         preloadNextAudio();
       };
       audio.addEventListener('canplaythrough', onCanPlay);
-    } catch(e) {
-      showToast('Playback error', 'error');
-    }
+    }).catch(function(e) {
+      if (requestId !== currentRequestId) return;
+      showToast('TTS error: ' + e.message, 'error');
+      playing = false;
+      updatePlayIcon();
+    });
   }
 
   function stop() {
