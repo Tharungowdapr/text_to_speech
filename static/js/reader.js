@@ -370,15 +370,10 @@
     if (nextIdx >= sentences.length) return;
     var text = getSentenceText(sentences[nextIdx]);
     if (!text) return;
-    try {
-      var r = await fetch(buildTtsUrl(text));
-      if (!r.ok) return;
-      var b = await r.blob();
-      nextAudio = new Audio(URL.createObjectURL(b));
-      nextAudio.volume = parseFloat(els.vol.value);
-      nextAudio.playbackRate = parseFloat(els.speed.value);
-      nextAudio.load();
-    } catch(e) {}
+    nextAudio = new Audio(buildTtsUrl(text));
+    nextAudio.volume = parseFloat(els.vol.value);
+    nextAudio.playbackRate = parseFloat(els.speed.value);
+    nextAudio.load();
   }
 
   let onEndHandler = null;
@@ -393,39 +388,28 @@
     var requestId = currentRequestId;
     els.playIcon.innerHTML = '<div class="spinner" style="width:16px;height:16px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;"></div>';
     
-    try {
-      var r = await fetch('/api/tts-stream/?text=' + encodeURIComponent(text) + '&voice=' + encodeURIComponent(voice));
-      if (!r.ok) throw new Error('HTTP ' + r.status);
-      var blob = await r.blob();
+    audio.src = '/api/tts-stream/?text=' + encodeURIComponent(text) + '&voice=' + encodeURIComponent(voice);
+    audio.volume = parseFloat(els.vol.value) || 1;
+    audio.playbackRate = parseFloat(els.speed.value) || 1;
+    
+    audio.play().catch(function(e) {
       if (requestId !== currentRequestId) return;
-      audio.src = URL.createObjectURL(blob);
-      audio.volume = parseFloat(els.vol.value) || 1;
-      audio.playbackRate = parseFloat(els.speed.value) || 1;
-      
-      audio.play().catch(function(e) {
-        if (requestId !== currentRequestId) return;
-        var msg = e.message || String(e);
-        console.error('[TTS] Playback failed:', e);
-        showToast('Playback failed: ' + msg, 'error');
-        playing = false;
-        updatePlayIcon();
-      });
-      
-      audio.addEventListener('ended', function onEnd() {
-        if (requestId !== currentRequestId) return;
-        audio.removeEventListener('ended', onEnd);
-        markCompleted(cur); next();
-      });
-      
-      playing = true;
-      updatePlayIcon();
-      preloadNextAudio();
-    } catch(e) {
-      if (requestId !== currentRequestId) return;
-      showToast('Playback failed: network or stream error', 'error');
+      var msg = e.message || String(e);
+      console.error('[TTS] Playback failed:', e);
+      showToast('Playback failed: ' + msg, 'error');
       playing = false;
       updatePlayIcon();
-    }
+    });
+    
+    audio.addEventListener('ended', function onEnd() {
+      if (requestId !== currentRequestId) return;
+      audio.removeEventListener('ended', onEnd);
+      markCompleted(cur); next();
+    });
+    
+    playing = true;
+    updatePlayIcon();
+    preloadNextAudio();
   }
 
   function stop() {

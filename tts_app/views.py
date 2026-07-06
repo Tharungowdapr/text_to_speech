@@ -278,10 +278,32 @@ def api_tts_stream(request):
     audio_bytes, error = TTSEngine.generate_audio_stream(text, voice)
     if error:
         return JsonResponse({"error": error}, status=500)
+        
+    size = len(audio_bytes)
+    range_header = request.META.get('HTTP_RANGE', '').strip()
+
+    if range_header.startswith('bytes='):
+        import re
+        try:
+            match = re.match(r'bytes=(\d+)-(\d*)', range_header)
+            if match:
+                start = int(match.group(1))
+                end = match.group(2)
+                end = int(end) if end else size - 1
+                length = end - start + 1
+                
+                response = HttpResponse(audio_bytes[start:end + 1], status=206, content_type="audio/mpeg")
+                response['Content-Range'] = f'bytes {start}-{end}/{size}'
+                response['Content-Length'] = str(length)
+                response["Accept-Ranges"] = "bytes"
+                return response
+        except ValueError:
+            pass
+
     response = HttpResponse(audio_bytes, content_type="audio/mpeg")
     response["Content-Disposition"] = 'inline; filename="tts.mp3"'
     response["Cache-Control"] = "no-cache"
-    response["Content-Length"] = str(len(audio_bytes))
+    response["Content-Length"] = str(size)
     response["Accept-Ranges"] = "bytes"
     return response
 
