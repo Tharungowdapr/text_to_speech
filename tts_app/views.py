@@ -337,7 +337,8 @@ def api_save_text(request):
     if not title or not content:
         return JsonResponse({"error": "Title and content required"}, status=400)
     SavedText.objects.create(user=request.user, title=title, content=content)
-    return JsonResponse({"ok": True})
+    count = SavedText.objects.filter(user=request.user).count()
+    return JsonResponse({"ok": True, "count": count})
 
 
 @csrf_exempt
@@ -346,7 +347,8 @@ def api_delete_text(request, text_id):
     if request.method != "DELETE":
         return JsonResponse({"error": "DELETE required"}, status=405)
     SavedText.objects.filter(id=text_id, user=request.user).delete()
-    return JsonResponse({"ok": True})
+    count = SavedText.objects.filter(user=request.user).count()
+    return JsonResponse({"ok": True, "count": count})
 
 
 @login_required

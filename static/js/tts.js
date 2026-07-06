@@ -179,7 +179,7 @@
       body: JSON.stringify({title, content: text})
     });
     const d = await r.json();
-    if (d.ok) { els.savedCount.textContent = d.texts.length; showToast('Text saved', 'success'); }
+    if (d.ok) { els.savedCount.textContent = d.count; showToast('Text saved', 'success'); }
   });
 
   els.savedBtn.addEventListener('click', async () => {
