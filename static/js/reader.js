@@ -388,52 +388,43 @@
     var requestId = currentRequestId;
     playing = true;
     updatePlayIcon();
-    fetch(buildTtsUrl(text, voice)).then(function(r) {
-      if (requestId !== currentRequestId) return null;
-      if (!r.ok) {
-        return r.json().catch(function() { return {}; }).then(function(d) {
-          throw new Error(d.error || ('HTTP ' + r.status));
-        });
-      }
-      return r.blob();
-    }).then(function(blob) {
-      if (!blob || requestId !== currentRequestId) return;
-      var url = URL.createObjectURL(blob);
-      audio.src = url;
-      audio.load();
-      audio.volume = parseFloat(els.vol.value);
-      audio.playbackRate = parseFloat(els.speed.value);
-      if (onEndHandler) audio.removeEventListener('ended', onEndHandler);
-      onEndHandler = function() {
-        if (requestId !== currentRequestId) return;
-        URL.revokeObjectURL(url);
-        markCompleted(cur); next();
-      };
-      audio.addEventListener('ended', onEndHandler);
-      audio.addEventListener('timeupdate', function() {
-        if (requestId !== currentRequestId) return;
-        var dur = audio.duration || 1;
-        var pct = (audio.currentTime / dur) * 100;
-        els.scrubFill.style.transition = 'none';
-        els.scrubFill.style.transform = 'scaleX(' + Math.min(pct / 100, 1) + ')';
-      });
-      audio.play().catch(function(e) {
-        if (requestId !== currentRequestId) return;
-        showToast('Playback failed: ' + e.message, 'error');
-        playing = false;
-        updatePlayIcon();
-      });
-      var onCanPlay = function() {
-        audio.removeEventListener('canplaythrough', onCanPlay);
-        preloadNextAudio();
-      };
-      audio.addEventListener('canplaythrough', onCanPlay);
-    }).catch(function(e) {
+    var srcUrl = buildTtsUrl(text, voice);
+    audio.src = srcUrl;
+    audio.load();
+    audio.volume = parseFloat(els.vol.value);
+    audio.playbackRate = parseFloat(els.speed.value);
+    if (onEndHandler) audio.removeEventListener('ended', onEndHandler);
+    onEndHandler = function() {
       if (requestId !== currentRequestId) return;
-      showToast('TTS error: ' + e.message, 'error');
+      markCompleted(cur); next();
+    };
+    audio.addEventListener('ended', onEndHandler);
+    audio.addEventListener('timeupdate', function() {
+      if (requestId !== currentRequestId) return;
+      var dur = audio.duration || 1;
+      var pct = (audio.currentTime / dur) * 100;
+      els.scrubFill.style.transition = 'none';
+      els.scrubFill.style.transform = 'scaleX(' + Math.min(pct / 100, 1) + ')';
+    });
+    audio.addEventListener('error', function() {
+      if (requestId !== currentRequestId) return;
+      var code = audio.error ? audio.error.code : 0;
+      showToast('Audio load error (code ' + code + ') — see console', 'error');
       playing = false;
       updatePlayIcon();
     });
+    audio.play().catch(function(e) {
+      if (requestId !== currentRequestId) return;
+      var msg = e.message || String(e);
+      showToast('Playback failed: ' + msg, 'error');
+      playing = false;
+      updatePlayIcon();
+    });
+    var onCanPlay = function() {
+      audio.removeEventListener('canplaythrough', onCanPlay);
+      preloadNextAudio();
+    };
+    audio.addEventListener('canplaythrough', onCanPlay);
   }
 
   function stop() {
