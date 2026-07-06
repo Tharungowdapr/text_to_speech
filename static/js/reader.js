@@ -377,6 +377,7 @@
   }
 
   let onEndHandler = null;
+  let currentRequestId = 0;
 
   function play() {
     var text = getSentenceText(sentences[cur]);
@@ -384,14 +385,27 @@
     try {
       var voice = els.voiceSelect && els.voiceSelect.value ? els.voiceSelect.value : 'en-US-JennyNeural';
       stop();
+      currentRequestId++;
+      var requestId = currentRequestId;
       audio.src = buildTtsUrl(text, voice);
       audio.load();
       audio.volume = parseFloat(els.vol.value);
       audio.playbackRate = parseFloat(els.speed.value);
       if (onEndHandler) audio.removeEventListener('ended', onEndHandler);
-      onEndHandler = function() { markCompleted(cur); next(); };
+      onEndHandler = function() {
+        if (requestId !== currentRequestId) return;
+        markCompleted(cur); next();
+      };
       audio.addEventListener('ended', onEndHandler);
+      audio.addEventListener('timeupdate', function() {
+        if (requestId !== currentRequestId) return;
+        var dur = audio.duration || 1;
+        var pct = (audio.currentTime / dur) * 100;
+        els.scrubFill.style.transition = 'none';
+        els.scrubFill.style.transform = 'scaleX(' + Math.min(pct / 100, 1) + ')';
+      });
       audio.play().catch(function(e) {
+        if (requestId !== currentRequestId) return;
         showToast('Playback failed', 'error');
         playing = false;
         updatePlayIcon();
@@ -405,6 +419,7 @@
   }
 
   function stop() {
+    currentRequestId++;
     audio.pause();
     audio.src = '';
     if (nextAudio) { nextAudio.src = ''; nextAudio = null; }
