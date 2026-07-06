@@ -109,7 +109,6 @@
       els.searchBtn.disabled = false;
       els.audiobookBtn.disabled = false;
       els.extractBtn.disabled = false; els.extractText.textContent = 'Extract';
-      setTimeout(function() { generateAllAudio(); }, 100);
     } catch(e) {
       showToast('Extraction failed', 'error');
       els.extractBtn.disabled = false; els.extractText.textContent = 'Extract';
@@ -268,7 +267,6 @@
       els.searchBtn.disabled = false;
       els.audiobookBtn.disabled = false;
       els.extractBtn.disabled = false; els.extractText.textContent = 'Extract';
-      setTimeout(function() { generateAllAudio(); }, 100);
 
       if (window._savedPos !== undefined && window._savedPos < sentences.length) {
         cur = window._savedPos;
@@ -282,29 +280,6 @@
     }
   }
   els.extractBtn.addEventListener('click', extract);
-
-  async function generateAllAudio() {
-    var voice = els.voiceSelect.value;
-    var texts = sentences.map(function(s) { return s.text || s; });
-    if (els.batchProgress) els.batchProgress.style.display = 'block';
-    if (els.extractText) els.extractText.textContent = 'Generating...';
-    try {
-      var r = await fetch('/api/tts-batch/', {
-        method: 'POST',
-        headers: {'Content-Type':'application/json','X-CSRFToken':getCSRFToken()},
-        body: JSON.stringify({texts: texts, voice: voice})
-      });
-      var d = await r.json();
-      audioMap = d.mapping || {};
-      if (els.batchProgress) {
-        els.batchProgress.style.display = 'none';
-        els.batchProgressBar.style.width = '0%';
-      }
-    } catch(e) {
-      if (els.batchProgress) els.batchProgress.style.display = 'none';
-    }
-    if (els.extractText) els.extractText.textContent = 'Extract';
-  }
 
   function renderSentences() {
     els.emptyState.style.display = 'none';
@@ -413,17 +388,19 @@
       }
       audio.volume = parseFloat(els.vol.value);
       audio.playbackRate = parseFloat(els.speed.value);
+      var onEnd = function() { markCompleted(cur); next(); };
+      audio.addEventListener('ended', onEnd);
       audio.play().catch(function(e) {
         showToast('Audio failed, retrying...', 'error');
-        audio = new Audio(buildTtsUrl(text, voice));
-        audio.volume = parseFloat(els.vol.value);
-        audio.playbackRate = parseFloat(els.speed.value);
-        audio.play().catch(function(e2) {
+        var retryAudio = new Audio(buildTtsUrl(text, voice));
+        retryAudio.volume = parseFloat(els.vol.value);
+        retryAudio.playbackRate = parseFloat(els.speed.value);
+        retryAudio.addEventListener('ended', onEnd);
+        retryAudio.play().catch(function(e2) {
           showToast('Audio playback failed: ' + (e2.message || 'unknown error'), 'error');
         });
-        audio.addEventListener('ended', function() { markCompleted(cur); next(); });
+        audio = retryAudio;
       });
-      audio.addEventListener('ended', function() { markCompleted(cur); next(); });
       if (!playing) { playing = true; updatePlayIcon(); }
       preloadNextAudio();
     } catch(e) { showToast('Playback error', 'error'); }

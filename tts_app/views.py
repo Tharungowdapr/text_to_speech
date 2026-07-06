@@ -3,6 +3,7 @@ import uuid
 import json
 import zipfile
 import io
+import logging
 from datetime import datetime
 from urllib.parse import unquote
 
@@ -118,7 +119,7 @@ def api_upload_pdf(request):
         with open(path, "wb") as dest:
             dest.write(file_bytes)
     except OSError:
-        pass  # disk not writable (Vercel cross-instance), will serve from DB
+        logging.warning("Failed to write uploaded file to disk (cross-instance or read-only FS): %s", saved)
 
     pdf = UserPDF.objects.create(
         user=request.user,
@@ -151,7 +152,7 @@ def api_upload_batch_pdf(request):
             with open(path, "wb") as dest:
                 dest.write(file_bytes)
         except OSError:
-            pass
+            logging.warning("Failed to write uploaded file to disk (cross-instance or read-only FS): %s", saved)
         pdf = UserPDF.objects.create(user=request.user, original_name=f.name, stored_path=saved, file_data=file_bytes)
         results.append({"id": pdf.id, "name": f.name, "path": saved})
     return JsonResponse({"files": results})
@@ -190,13 +191,10 @@ def api_extract_text(request):
         with open(filepath, "rb") as fh:
             pdf_bytes = fh.read()
     else:
-        try:
-            pdf = UserPDF.objects.filter(stored_path=os.path.basename(path)).first()
-            if pdf and pdf.file_data:
-                pdf_bytes = pdf.file_data
-            else:
-                return JsonResponse({"error": "File not found"}, status=404)
-        except Exception:
+        pdf = UserPDF.objects.filter(stored_path=os.path.basename(path)).first()
+        if pdf and pdf.file_data:
+            pdf_bytes = pdf.file_data
+        else:
             return JsonResponse({"error": "File not found"}, status=404)
 
     ext = os.path.splitext(path)[1].lower()
@@ -213,7 +211,7 @@ def api_extract_text(request):
             "ocrUsed": force_ocr or (not raw.strip())
         })
     elif ext in DocumentProcessor.supported_formats():
-        content = DocumentProcessor.extract(filepath)
+        content = DocumentProcessor.extract_from_bytes(pdf_bytes, ext)
         sentences = [{"text": s, "page": 0} for s in PDFProcessor._split_sentences(content) if s.strip()]
         chapters = PDFProcessor._detect_chapters(content)
         return JsonResponse({
@@ -242,12 +240,17 @@ def api_search_text(request):
         return JsonResponse({"error": "path and query required"}, status=400)
 
     filepath = os.path.join(settings.UPLOAD_DIR, os.path.basename(path))
-    if not os.path.exists(filepath):
-        return JsonResponse({"error": "File not found"}, status=404)
+    if os.path.exists(filepath):
+        with open(filepath, "rb") as fh:
+            pdf_bytes = fh.read()
+    else:
+        pdf = UserPDF.objects.filter(stored_path=os.path.basename(path)).first()
+        if pdf and pdf.file_data:
+            pdf_bytes = pdf.file_data
+        else:
+            return JsonResponse({"error": "File not found"}, status=404)
 
-    with open(filepath, "rb") as fh:
-        text, _, _, _ = PDFProcessor.extract_text(fh.read())
-
+    text, _, _, _ = PDFProcessor.extract_text(pdf_bytes)
     results = PDFProcessor.search_text(text, query)
     return JsonResponse({"results": results, "count": len(results)})
 
@@ -279,6 +282,7 @@ def api_serve_audio(request, filename):
     """Serve generated audio files from AUDIO_DIR"""
     if not request.user.is_authenticated:
         return JsonResponse({"error": "Authentication required"}, status=401)
+    filename = unquote(filename)
     filepath = os.path.join(settings.AUDIO_DIR, filename)
     if not os.path.exists(filepath):
         return JsonResponse({"error": "Not found"}, status=404)
@@ -352,8 +356,14 @@ def api_save_bookmark(request):
     if request.method != "POST":
         return JsonResponse({"error": "POST required"}, status=405)
     data = json.loads(request.body)
+    pdf_path = data.get("pdfPath", "")
+    pdf_file = None
+    if pdf_path:
+        pdf_file = UserPDF.objects.filter(user=request.user, stored_path=os.path.basename(pdf_path)).first()
     bm = Bookmark.objects.create(
         user=request.user,
+        pdf_file=pdf_file,
+        pdf_path=pdf_path,
         sentence_index=data.get("sentenceIndex", 0),
         label=data.get("label", f"Sentence {data.get('sentenceIndex', 0) + 1}")
     )
@@ -362,7 +372,10 @@ def api_save_bookmark(request):
 
 @login_required
 def api_get_bookmarks(request):
+    pdf_path = request.GET.get("pdfPath", "")
     bms = Bookmark.objects.filter(user=request.user)
+    if pdf_path:
+        bms = bms.filter(pdf_path=pdf_path)
     return JsonResponse([{"id": b.id, "sentenceIndex": b.sentence_index, "label": b.label, "timestamp": b.timestamp.isoformat()} for b in bms], safe=False)
 
 

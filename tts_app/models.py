@@ -5,7 +5,7 @@ from django.contrib.auth.models import User
 class UserPDF(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="pdfs")
     original_name = models.CharField(max_length=500)
-    stored_path = models.CharField(max_length=500)
+    stored_path = models.CharField(max_length=500, unique=True)
     file_data = models.BinaryField(null=True, blank=True)
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
@@ -26,6 +26,7 @@ class SavedText(models.Model):
 class Bookmark(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="bookmarks")
     pdf_file = models.ForeignKey(UserPDF, on_delete=models.CASCADE, null=True, blank=True)
+    pdf_path = models.CharField(max_length=500, default="")
     sentence_index = models.IntegerField()
     label = models.CharField(max_length=300, default="")
     timestamp = models.DateTimeField(auto_now_add=True)

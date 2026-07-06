@@ -11,24 +11,38 @@ class PDFProcessor:
         raw_parts = []
         sentences_with_pages = []
 
+        # Open PDF once for OCR if needed
+        ocr_doc = None
+        if force_ocr:
+            try:
+                import fitz
+                ocr_doc = fitz.open(stream=pdf_bytes, filetype="pdf")
+            except ImportError:
+                ocr_doc = None
+
         for page_num, page in enumerate(reader.pages):
             text = page.extract_text() or ""
             raw_parts.append(text)
 
             if force_ocr or (not text.strip()):
-                text = PDFProcessor._ocr_page(pdf_bytes, page_num)
+                text = PDFProcessor._ocr_page(ocr_doc, page_num)
 
             if text.strip():
                 page_sentences = PDFProcessor._split_sentences(text)
                 for s in page_sentences:
                     sentences_with_pages.append({"text": s, "page": page_num})
 
+        if ocr_doc:
+            ocr_doc.close()
+
         raw = " ".join(raw_parts)
         chapters = PDFProcessor._detect_chapters(raw)
         return raw, sentences_with_pages, num_pages, chapters
 
     @staticmethod
-    def _ocr_page(pdf_bytes: bytes, page_num: int) -> str:
+    def _ocr_page(ocr_doc, page_num: int) -> str:
+        if ocr_doc is None:
+            return ""
         try:
             import fitz
             from PIL import Image
@@ -36,15 +50,10 @@ class PDFProcessor:
         except ImportError:
             return ""
         try:
-            doc = fitz.open(stream=pdf_bytes, filetype="pdf")
-            page = doc[page_num]
+            page = ocr_doc[page_num]
             mat = fitz.Matrix(2, 2)
             pix = page.get_pixmap(matrix=mat)
             img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-            try:
-                pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-            except Exception:
-                pass
             return pytesseract.image_to_string(img)
         except Exception:
             return ""
