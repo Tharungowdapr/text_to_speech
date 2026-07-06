@@ -4,6 +4,7 @@ import json
 import zipfile
 import io
 from datetime import datetime
+from urllib.parse import unquote
 
 from django.shortcuts import render, redirect
 from django.http import JsonResponse, FileResponse, HttpResponse
@@ -268,6 +269,8 @@ def api_tts_stream(request):
     response = HttpResponse(audio_bytes, content_type="audio/mpeg")
     response["Content-Disposition"] = 'inline; filename="tts.mp3"'
     response["Cache-Control"] = "no-cache"
+    response["Content-Length"] = str(len(audio_bytes))
+    response["Accept-Ranges"] = "bytes"
     return response
 
 
@@ -478,10 +481,11 @@ def api_export_zip(request):
 def api_serve_pdf(request, pdf_path):
     if not request.user.is_authenticated:
         return JsonResponse({"error": "Authentication required"}, status=401)
-    filepath = os.path.join(settings.UPLOAD_DIR, os.path.basename(pdf_path))
+    basename = os.path.basename(unquote(pdf_path))
+    filepath = os.path.join(settings.UPLOAD_DIR, basename)
     if os.path.exists(filepath):
         return FileResponse(open(filepath, "rb"), content_type="application/pdf")
-    pdf = UserPDF.objects.filter(stored_path=os.path.basename(pdf_path)).first()
+    pdf = UserPDF.objects.filter(stored_path=basename).first()
     if pdf and pdf.file_data:
         return HttpResponse(pdf.file_data, content_type="application/pdf")
     return JsonResponse({"error": "File not found"}, status=404)
