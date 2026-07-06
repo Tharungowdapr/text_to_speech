@@ -33,3 +33,13 @@ class Bookmark(models.Model):
 
     class Meta:
         ordering = ["-timestamp"]
+
+
+class AudioCache(models.Model):
+    """Cached TTS audio stored in DB so it survives disk resets."""
+    cache_key = models.CharField(max_length=64, unique=True, db_index=True)  # sha256(text+voice)
+    audio_data = models.BinaryField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at"]

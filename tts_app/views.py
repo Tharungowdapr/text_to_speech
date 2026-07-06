@@ -273,6 +273,26 @@ def api_search_text(request):
     return JsonResponse({"results": results, "count": len(results)})
 
 
+# ── File Serving (PDF & Audio) ──
+
+@login_required
+def api_serve_audio(request, filename):
+    cache_key = filename.replace(".mp3", "")
+    from tts_app.models import AudioCache
+    
+    # Try local disk first
+    filepath = os.path.join(settings.AUDIO_DIR, filename)
+    if os.path.exists(filepath):
+        return FileResponse(open(filepath, "rb"), content_type="audio/mpeg")
+        
+    # Fallback to DB
+    cache_obj = AudioCache.objects.filter(cache_key=cache_key).first()
+    if cache_obj:
+        return HttpResponse(cache_obj.audio_data, content_type="audio/mpeg")
+        
+    return JsonResponse({"error": "Audio file not found"}, status=404)
+
+
 # ── Audio Generation ──
 
 @csrf_exempt

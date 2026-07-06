@@ -2,8 +2,10 @@ import os
 import uuid
 import asyncio
 import io
+import hashlib
 import logging
 from django.conf import settings
+from django.core.files.base import ContentFile
 
 logger = logging.getLogger(__name__)
 
@@ -66,10 +68,27 @@ def _run_async(coro):
 
 class TTSEngine:
     @staticmethod
+    def _get_cache_key(text: str, voice_id: str) -> str:
+        return hashlib.sha256(f"{text}::{voice_id}".encode('utf-8')).hexdigest()
+
+    @staticmethod
     def generate_audio(text: str, voice_id: str = "en-US-JennyNeural") -> tuple:
-        os.makedirs(settings.AUDIO_DIR, exist_ok=True)
-        filename = f"{uuid.uuid4().hex}.mp3"
+        from tts_app.models import AudioCache
+        cache_key = TTSEngine._get_cache_key(text, voice_id)
+        
+        # Check DB cache
+        cache_obj = AudioCache.objects.filter(cache_key=cache_key).first()
+        filename = f"{cache_key}.mp3"
         filepath = os.path.join(settings.AUDIO_DIR, filename)
+
+        if cache_obj:
+            if not os.path.exists(filepath):
+                os.makedirs(settings.AUDIO_DIR, exist_ok=True)
+                with open(filepath, "wb") as f:
+                    f.write(cache_obj.audio_data)
+            return filename, None
+
+        os.makedirs(settings.AUDIO_DIR, exist_ok=True)
         try:
             voice_info = VOICES.get(voice_id)
             if voice_info:
@@ -79,9 +98,13 @@ class TTSEngine:
                 lang = voice_id if voice_id in FALLBACK_LANG_MAP else "en"
                 tts = gTTS(text=text, lang=lang, slow=False)
                 tts.save(filepath)
+                
             if os.path.getsize(filepath) < 100:
                 os.remove(filepath)
                 return None, "Audio generation failed (empty output)"
+                
+            with open(filepath, "rb") as f:
+                AudioCache.objects.create(cache_key=cache_key, audio_data=f.read())
             return filename, None
         except Exception as e:
             return None, f"TTS failed: {e}"
@@ -144,6 +167,7 @@ class TTSEngine:
 
     @staticmethod
     def generate_audio_batch(texts: list, voice_id: str = "en-US-JennyNeural", max_concurrent: int = 5) -> dict:
+        from tts_app.models import AudioCache
         os.makedirs(settings.AUDIO_DIR, exist_ok=True)
         results = {}
         voice_info = VOICES.get(voice_id)
@@ -153,8 +177,25 @@ class TTSEngine:
 
             async def _one(idx, text):
                 async with sem:
-                    fname = f"{uuid.uuid4().hex}.mp3"
+                    cache_key = TTSEngine._get_cache_key(text, voice_id)
+                    fname = f"{cache_key}.mp3"
                     fpath = os.path.join(settings.AUDIO_DIR, fname)
+                    
+                    # Sync DB access inside async using thread
+                    loop = asyncio.get_running_loop()
+                    def _check_db():
+                        return AudioCache.objects.filter(cache_key=cache_key).first()
+                    cache_obj = await loop.run_in_executor(None, _check_db)
+                    
+                    if cache_obj:
+                        if not os.path.exists(fpath):
+                            def _write():
+                                with open(fpath, "wb") as f:
+                                    f.write(cache_obj.audio_data)
+                            await loop.run_in_executor(None, _write)
+                        results[idx] = fname
+                        return
+
                     use_gtts = False
                     if voice_info:
                         import edge_tts
@@ -169,13 +210,16 @@ class TTSEngine:
                     if use_gtts:
                         from gtts import gTTS
                         lang = voice_id if voice_id in FALLBACK_LANG_MAP else "en"
-                        loop = asyncio.get_running_loop()
-
                         def _sync_save():
                             tts = gTTS(text=text, lang=lang, slow=False)
                             tts.save(fpath)
                         await loop.run_in_executor(None, _sync_save)
+                        
                     if os.path.getsize(fpath) >= 100:
+                        def _save_db():
+                            with open(fpath, "rb") as f:
+                                AudioCache.objects.create(cache_key=cache_key, audio_data=f.read())
+                        await loop.run_in_executor(None, _save_db)
                         results[idx] = fname
             tasks = [_one(i, t) for i, t in enumerate(texts) if t.strip()]
             await asyncio.gather(*tasks)
