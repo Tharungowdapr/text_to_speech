@@ -73,7 +73,7 @@ document.getElementById('pdfInput').addEventListener('change', async (e) => {
   if (!file) return;
   const form = new FormData();
   form.append('file', file);
-  const res = await fetch('/api/upload-pdf/', { method: 'POST', body: form });
+  const res = await fetch('/api/upload-pdf/', { method: 'POST', body: form, headers: {'X-CSRFToken': getCSRFToken()} });
   const data = await res.json();
   if (data.error) { showToast(data.error, 'error'); return; }
   window.location.href = '/reader/?path=' + encodeURIComponent(data.path);

@@ -15,7 +15,10 @@ from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.models import User
+from django.contrib.auth.password_validation import validate_password
+from django.core.exceptions import ValidationError
 from django.conf import settings
+from django_ratelimit.decorators import ratelimit
 
 from .models import UserPDF, SavedText, Bookmark
 from .utils.pdf_processor import PDFProcessor
@@ -40,6 +43,7 @@ def register_page(request):
 # ── Auth API ──
 
 @csrf_exempt
+@ratelimit(key='ip', rate='10/m', method='POST', block=True)
 def api_login(request):
     if request.method != "POST":
         return JsonResponse({"error": "POST required"}, status=405)
@@ -52,6 +56,7 @@ def api_login(request):
 
 
 @csrf_exempt
+@ratelimit(key='ip', rate='5/m', method='POST', block=True)
 def api_register(request):
     if request.method != "POST":
         return JsonResponse({"error": "POST required"}, status=405)
@@ -60,8 +65,11 @@ def api_register(request):
     password = data.get("password", "")
     if not username or not password:
         return JsonResponse({"error": "Username and password required"}, status=400)
-    if len(password) < 4:
-        return JsonResponse({"error": "Password too short"}, status=400)
+    # Validate password with Django's built-in validators
+    try:
+        validate_password(password)
+    except ValidationError as e:
+        return JsonResponse({"error": ", ".join(e.messages)}, status=400)
     if User.objects.filter(username=username).exists():
         return JsonResponse({"error": "Username taken"}, status=400)
     user = User.objects.create_user(username=username, password=password)
@@ -99,7 +107,6 @@ def text_to_speech(request):
 
 # ── Document Upload (PDF, DOCX, PPTX) ──
 
-@csrf_exempt
 @login_required
 def api_upload_pdf(request):
     if request.method != "POST":
@@ -133,7 +140,6 @@ def api_upload_pdf(request):
     return JsonResponse({"id": pdf.id, "name": f.name, "path": saved, "format": ext})
 
 
-@csrf_exempt
 @login_required
 def api_upload_batch_pdf(request):
     if request.method != "POST":
@@ -255,7 +261,8 @@ def api_search_text(request):
         with open(filepath, "rb") as fh:
             pdf_bytes = fh.read()
     else:
-        pdf = UserPDF.objects.filter(stored_path=os.path.basename(path)).first()
+        # IDOR fix: filter by user
+        pdf = UserPDF.objects.filter(stored_path=os.path.basename(path), user=request.user).first()
         if pdf and pdf.file_data:
             pdf_bytes = pdf.file_data
         else:
@@ -269,6 +276,7 @@ def api_search_text(request):
 # ── Audio Generation ──
 
 @csrf_exempt
+@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
 def api_tts_stream(request):
     text = request.GET.get("text", "")
     voice = request.GET.get("voice", "en-US-JennyNeural")
@@ -322,10 +330,8 @@ def api_serve_audio(request, filename):
     return response
 
 
-@csrf_exempt
+@login_required
 def api_tts_batch(request):
-    if not request.user.is_authenticated:
-        return JsonResponse({"error": "Authentication required"}, status=401)
     if request.method != "POST":
         return JsonResponse({"error": "POST required"}, status=405)
     data = json.loads(request.body)
@@ -357,7 +363,6 @@ def api_voices(request):
 
 # ── Saved Texts ──
 
-@csrf_exempt
 @login_required
 def api_save_text(request):
     if request.method != "POST":
@@ -372,7 +377,6 @@ def api_save_text(request):
     return JsonResponse({"ok": True, "count": count})
 
 
-@csrf_exempt
 @login_required
 def api_delete_text(request, text_id):
     if request.method != "DELETE":
@@ -399,7 +403,6 @@ def api_get_texts(request):
 
 # ── Bookmarks ──
 
-@csrf_exempt
 @login_required
 def api_save_bookmark(request):
     if request.method != "POST":
@@ -437,7 +440,6 @@ def api_get_bookmarks(request):
     return JsonResponse(data, safe=False)
 
 
-@csrf_exempt
 @login_required
 def api_delete_bookmark(request, bookmark_id):
     if request.method != "DELETE":
@@ -448,7 +450,6 @@ def api_delete_bookmark(request, bookmark_id):
 
 # ── Reading Position ──
 
-@csrf_exempt
 @login_required
 def api_save_position(request):
     if request.method != "POST":
@@ -472,7 +473,6 @@ def api_get_position(request):
 
 # ── Reading Progress ──
 
-@csrf_exempt
 @login_required
 def api_save_progress(request):
     if request.method != "POST":
@@ -498,7 +498,6 @@ def api_get_progress(request):
 
 # ── Export Audiobook (ZIP with chapters + playlist) ──
 
-@csrf_exempt
 @login_required
 def api_export_zip(request):
     if request.method != "POST":
@@ -553,12 +552,14 @@ def api_serve_pdf(request, pdf_path):
     if not request.user.is_authenticated:
         return JsonResponse({"error": "Authentication required"}, status=401)
     basename = os.path.basename(unquote(pdf_path))
-    filepath = os.path.join(settings.UPLOAD_DIR, basename)
-    if os.path.exists(filepath):
-        return FileResponse(open(filepath, "rb"), content_type="application/pdf")
-    pdf = UserPDF.objects.filter(stored_path=basename).first()
-    if pdf and pdf.file_data:
-        return HttpResponse(pdf.file_data, content_type="application/pdf")
+    # IDOR fix: always filter by user
+    pdf = UserPDF.objects.filter(stored_path=basename, user=request.user).first()
+    if pdf:
+        if pdf.file_data:
+            return HttpResponse(pdf.file_data, content_type="application/pdf")
+        filepath = os.path.join(settings.UPLOAD_DIR, basename)
+        if os.path.exists(filepath):
+            return FileResponse(open(filepath, "rb"), content_type="application/pdf")
     return JsonResponse({"error": "File not found"}, status=404)
 
 

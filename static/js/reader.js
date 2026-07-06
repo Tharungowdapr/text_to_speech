@@ -53,7 +53,7 @@
     if (localPdfUrl) URL.revokeObjectURL(localPdfUrl);
     localPdfUrl = URL.createObjectURL(f);
     var fd = new FormData(); fd.append('file', f);
-    var r = await fetch('/api/upload-pdf/', { method: 'POST', body: fd });
+    var r = await fetch('/api/upload-pdf/', { method: 'POST', body: fd, headers: {'X-CSRFToken': getCSRFToken()} });
     var d = await r.json();
     if (d.error) { showToast(d.error, 'error'); return; }
     window.history.replaceState(null, '', '/reader/?path=' + encodeURIComponent(d.path));
