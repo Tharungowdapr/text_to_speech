@@ -386,34 +386,9 @@
     stop();
     currentRequestId++;
     var requestId = currentRequestId;
-    playing = true;
-    updatePlayIcon();
-    var srcUrl = buildTtsUrl(text, voice);
-    audio.src = srcUrl;
-    audio.load();
-    audio.volume = parseFloat(els.vol.value);
-    audio.playbackRate = parseFloat(els.speed.value);
-    if (onEndHandler) audio.removeEventListener('ended', onEndHandler);
-    onEndHandler = function() {
-      if (requestId !== currentRequestId) return;
-      markCompleted(cur); next();
-    };
-    audio.addEventListener('ended', onEndHandler);
-    audio.addEventListener('timeupdate', function() {
-      if (requestId !== currentRequestId) return;
-      var dur = audio.duration || 1;
-      var pct = (audio.currentTime / dur) * 100;
-      els.scrubFill.style.transition = 'none';
-      els.scrubFill.style.transform = 'scaleX(' + Math.min(pct / 100, 1) + ')';
-    });
-    audio.addEventListener('error', function() {
-      if (requestId !== currentRequestId) return;
-      var code = audio.error ? audio.error.code : 0;
-      console.error('[TTS] Audio error:', audio.error, 'code:', code);
-      showToast('Audio load error (code ' + code + ') — see console', 'error');
-      playing = false;
-      updatePlayIcon();
-    });
+    audio.src = '/api/tts-stream/?text=' + encodeURIComponent(text) + '&voice=' + encodeURIComponent(voice);
+    audio.volume = parseFloat(els.vol.value) || 1;
+    audio.playbackRate = parseFloat(els.speed.value) || 1;
     audio.play().catch(function(e) {
       if (requestId !== currentRequestId) return;
       var msg = e.message || String(e);
@@ -422,11 +397,14 @@
       playing = false;
       updatePlayIcon();
     });
-    var onCanPlay = function() {
-      audio.removeEventListener('canplaythrough', onCanPlay);
-      preloadNextAudio();
-    };
-    audio.addEventListener('canplaythrough', onCanPlay);
+    audio.addEventListener('ended', function onEnd() {
+      if (requestId !== currentRequestId) return;
+      audio.removeEventListener('ended', onEnd);
+      markCompleted(cur); next();
+    });
+    playing = true;
+    updatePlayIcon();
+    preloadNextAudio();
   }
 
   function stop() {
