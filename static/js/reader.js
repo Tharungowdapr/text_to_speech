@@ -409,6 +409,7 @@
     audio.addEventListener('error', function() {
       if (requestId !== currentRequestId) return;
       var code = audio.error ? audio.error.code : 0;
+      console.error('[TTS] Audio error:', audio.error, 'code:', code);
       showToast('Audio load error (code ' + code + ') — see console', 'error');
       playing = false;
       updatePlayIcon();
@@ -416,6 +417,7 @@
     audio.play().catch(function(e) {
       if (requestId !== currentRequestId) return;
       var msg = e.message || String(e);
+      console.error('[TTS] Playback failed:', e);
       showToast('Playback failed: ' + msg, 'error');
       playing = false;
       updatePlayIcon();
