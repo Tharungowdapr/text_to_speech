@@ -117,13 +117,12 @@ def api_upload_pdf(request):
         with open(path, "wb") as dest:
             dest.write(file_bytes)
     except OSError:
-        pass  # filesystem not writable on Vercel, will serve from DB
+        return JsonResponse({"error": "Server error: cannot store file"}, status=500)
 
     pdf = UserPDF.objects.create(
         user=request.user,
         original_name=f.name,
-        stored_path=saved,
-        file_data=file_bytes
+        stored_path=saved
     )
     ext = os.path.splitext(f.name)[1].lower()
     return JsonResponse({"id": pdf.id, "name": f.name, "path": saved, "format": ext})
@@ -182,34 +181,15 @@ def api_extract_text(request):
         return JsonResponse({"error": "No path"}, status=400)
 
     filepath = os.path.join(settings.UPLOAD_DIR, os.path.basename(path))
-    if os.path.exists(filepath):
-        with open(filepath, "rb") as fh:
-            pdf_bytes = fh.read()
-    else:
-        try:
-            pdf = UserPDF.objects.filter(stored_path=os.path.basename(path)).first()
-            if pdf and pdf.file_data:
-                pdf_bytes = pdf.file_data
-            else:
-                return JsonResponse({"error": "File not found"}, status=404)
-        except Exception:
-            return JsonResponse({"error": "File not found"}, status=404)
+    if not os.path.exists(filepath):
+        return JsonResponse({"error": "File not found"}, status=404)
 
     ext = os.path.splitext(path)[1].lower()
     doc_format = ext.lstrip(".")
 
     if ext == ".pdf":
-        raw, sentences, num_pages, chapters = PDFProcessor.extract_text(pdf_bytes, force_ocr=force_ocr)
-        return JsonResponse({
-            "raw": raw,
-            "sentences": sentences,
-            "numPages": num_pages,
-            "chapters": chapters,
-            "format": "pdf",
-            "ocrUsed": force_ocr or (not raw.strip())
-        })
-    elif ext in DocumentProcessor.supported_formats():
-        content = DocumentProcessor.extract(filepath)
+        with open(filepath, "rb") as fh:
+            pdf_bytes = fh.read()
         sentences = [{"text": s, "page": 0} for s in PDFProcessor._split_sentences(content) if s.strip()]
         chapters = PDFProcessor._detect_chapters(content)
         return JsonResponse({
@@ -476,16 +456,9 @@ def api_serve_pdf(request, pdf_path):
     if not request.user.is_authenticated:
         return JsonResponse({"error": "Authentication required"}, status=401)
     filepath = os.path.join(settings.UPLOAD_DIR, os.path.basename(pdf_path))
-    if os.path.exists(filepath):
-        return FileResponse(open(filepath, "rb"), content_type="application/pdf")
-    # Fallback to database storage
-    try:
-        pdf = UserPDF.objects.filter(stored_path=os.path.basename(pdf_path)).first()
-        if pdf and pdf.file_data:
-            return HttpResponse(pdf.file_data, content_type="application/pdf")
-    except Exception:
-        pass
-    return JsonResponse({"error": "File not found"}, status=404)
+    if not os.path.exists(filepath):
+        return JsonResponse({"error": "File not found"}, status=404)
+    return FileResponse(open(filepath, "rb"), content_type="application/pdf")
 
 
 # ── Health Check ──

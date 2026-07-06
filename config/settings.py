@@ -67,7 +67,7 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 # Vercel serves static files via StaticFilesHandler (DEBUG=True); Render via whitenoise middleware after collectstatic
 STORAGES = {
     "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
     },
 }
 
