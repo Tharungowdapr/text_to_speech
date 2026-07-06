@@ -114,6 +114,8 @@ class TTSEngine:
             except Exception as e:
                 logger.exception("edge_tts generation failed for voice=%s", voice_id)
                 edge_error = str(e)
+                if "NoAudioReceived" in str(e):
+                    logger.warning("edge_tts NoAudioReceived for voice=%s, falling back to gTTS", voice_id)
             try:
                 from gtts import gTTS
                 tts = gTTS(text=text, lang="en", slow=False)
@@ -153,11 +155,18 @@ class TTSEngine:
                 async with sem:
                     fname = f"{uuid.uuid4().hex}.mp3"
                     fpath = os.path.join(settings.AUDIO_DIR, fname)
+                    use_gtts = False
                     if voice_info:
                         import edge_tts
-                        comm = edge_tts.Communicate(text, voice_id)
-                        await comm.save(fpath)
+                        try:
+                            comm = edge_tts.Communicate(text, voice_id)
+                            await comm.save(fpath)
+                        except edge_tts.exceptions.NoAudioReceived:
+                            logger.warning("edge_tts NoAudioReceived for voice=%s, falling back to gTTS", voice_id)
+                            use_gtts = True
                     else:
+                        use_gtts = True
+                    if use_gtts:
                         from gtts import gTTS
                         lang = voice_id if voice_id in FALLBACK_LANG_MAP else "en"
                         loop = asyncio.get_running_loop()
