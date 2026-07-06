@@ -376,37 +376,45 @@
     nextAudio.load();
   }
 
-  let onEndHandler = null;
   let currentRequestId = 0;
 
-  async function play() {
+  function play() {
     var text = getSentenceText(sentences[cur]);
     if (!text) { next(); return; }
-    var voice = els.voiceSelect && els.voiceSelect.value ? els.voiceSelect.value : 'en-US-JennyNeural';
-    stop();
-    currentRequestId++;
-    var requestId = currentRequestId;
-    els.playIcon.innerHTML = '<div class="spinner" style="width:16px;height:16px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;"></div>';
-    
+    var voice = (els.voiceSelect && els.voiceSelect.value) ? els.voiceSelect.value : 'en-US-JennyNeural';
+    stop(); // clears src, removes old handler, increments requestId
+    var myId = currentRequestId;
+
+    audio.onended = null; // clear any old handler
+    audio.onerror = null;
+
     audio.src = '/api/tts-stream/?text=' + encodeURIComponent(text) + '&voice=' + encodeURIComponent(voice);
     audio.volume = parseFloat(els.vol.value) || 1;
     audio.playbackRate = parseFloat(els.speed.value) || 1;
-    
-    audio.play().catch(function(e) {
-      if (requestId !== currentRequestId) return;
-      var msg = e.message || String(e);
-      console.error('[TTS] Playback failed:', e);
-      showToast('Playback failed: ' + msg, 'error');
+
+    audio.onended = function() {
+      if (myId !== currentRequestId) return;
+      markCompleted(cur);
+      next();
+    };
+
+    audio.onerror = function() {
+      if (myId !== currentRequestId) return;
+      showToast('Playback error: failed to load audio', 'error');
       playing = false;
       updatePlayIcon();
-    });
-    
-    audio.addEventListener('ended', function onEnd() {
-      if (requestId !== currentRequestId) return;
-      audio.removeEventListener('ended', onEnd);
-      markCompleted(cur); next();
-    });
-    
+    };
+
+    var playPromise = audio.play();
+    if (playPromise !== undefined) {
+      playPromise.catch(function(e) {
+        if (myId !== currentRequestId) return;
+        showToast('Playback failed: ' + (e.message || e), 'error');
+        playing = false;
+        updatePlayIcon();
+      });
+    }
+
     playing = true;
     updatePlayIcon();
     preloadNextAudio();
@@ -414,6 +422,8 @@
 
   function stop() {
     currentRequestId++;
+    audio.onended = null;
+    audio.onerror = null;
     audio.pause();
     audio.src = '';
     if (nextAudio) { nextAudio.src = ''; nextAudio = null; }
