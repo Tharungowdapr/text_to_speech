@@ -1,5 +1,5 @@
 (function() {
-  let sentences = [], cur = 0, playing = false, audio = null, audioMap = {};
+  let sentences = [], cur = 0, playing = false, audioMap = {};
 
   const els = {
     textarea: document.getElementById('ttsTextarea'),
@@ -25,6 +25,8 @@
   function parseSentences(text) {
     return text.replace(/([.!?])\s+/g,'$1|').replace(/([.!?])([A-Z])/g,'$1|$2').split('|').map(s=>s.trim()).filter(s=>s.length>0);
   }
+
+  const audio = new Audio();
 
   els.textarea.addEventListener('input', () => {
     const t = els.textarea.value.trim();
@@ -121,23 +123,26 @@
     try {
       const voice = els.voiceSelect.value;
       stop();
-      audio = new Audio('/api/tts-stream/?text=' + encodeURIComponent(text) + '&voice=' + encodeURIComponent(voice));
+      audio.src = '/api/tts-stream/?text=' + encodeURIComponent(text) + '&voice=' + encodeURIComponent(voice);
       audio.volume = parseFloat(els.vol.value);
       audio.playbackRate = parseFloat(els.speed.value);
       audio.play().catch((e) => {
         showToast('Audio playback failed: ' + (e.message || 'unknown error'), 'error');
+        playing = false;
+        updatePlayIcon();
       });
       audio.addEventListener('ended', () => next());
-      if (!playing) { playing = true; updatePlayIcon(); }
+      playing = true;
+      updatePlayIcon();
     } catch(e) { showToast('Playback error', 'error'); }
   }
 
-  function stop() { if (audio) { audio.pause(); audio = null; } }
+  function stop() { audio.pause(); audio.src = ''; }
 
   function togglePlay() {
     if (!sentences.length) return;
     if (playing) { playing = false; stop(); updatePlayIcon(); }
-    else { playing = true; updatePlayIcon(); play(); }
+    else { play(); }
   }
 
   function next() {
