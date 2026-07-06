@@ -124,7 +124,9 @@
       audio = new Audio('/api/tts-stream/?text=' + encodeURIComponent(text) + '&voice=' + encodeURIComponent(voice));
       audio.volume = parseFloat(els.vol.value);
       audio.playbackRate = parseFloat(els.speed.value);
-      audio.play().catch(() => {});
+      audio.play().catch((e) => {
+        showToast('Audio playback failed: ' + (e.message || 'unknown error'), 'error');
+      });
       audio.addEventListener('ended', () => next());
       if (!playing) { playing = true; updatePlayIcon(); }
     } catch(e) { showToast('Playback error', 'error'); }

@@ -6,7 +6,7 @@ import io
 from datetime import datetime
 
 from django.shortcuts import render, redirect
-from django.http import JsonResponse, FileResponse
+from django.http import JsonResponse, FileResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth import authenticate, login, logout
 from django.contrib.auth.decorators import login_required
@@ -111,15 +111,19 @@ def api_upload_pdf(request):
 
     fid = uuid.uuid4().hex
     saved = f"{fid}_{f.name}"
+    file_bytes = b"".join(f.chunks())
     path = os.path.join(settings.UPLOAD_DIR, saved)
-    with open(path, "wb") as dest:
-        for chunk in f.chunks():
-            dest.write(chunk)
+    try:
+        with open(path, "wb") as dest:
+            dest.write(file_bytes)
+    except OSError:
+        pass  # filesystem not writable on Vercel, will serve from DB
 
     pdf = UserPDF.objects.create(
         user=request.user,
         original_name=f.name,
-        stored_path=saved
+        stored_path=saved,
+        file_data=file_bytes
     )
     ext = os.path.splitext(f.name)[1].lower()
     return JsonResponse({"id": pdf.id, "name": f.name, "path": saved, "format": ext})
@@ -178,15 +182,23 @@ def api_extract_text(request):
         return JsonResponse({"error": "No path"}, status=400)
 
     filepath = os.path.join(settings.UPLOAD_DIR, os.path.basename(path))
-    if not os.path.exists(filepath):
-        return JsonResponse({"error": "File not found"}, status=404)
+    if os.path.exists(filepath):
+        with open(filepath, "rb") as fh:
+            pdf_bytes = fh.read()
+    else:
+        try:
+            pdf = UserPDF.objects.filter(stored_path=os.path.basename(path)).first()
+            if pdf and pdf.file_data:
+                pdf_bytes = pdf.file_data
+            else:
+                return JsonResponse({"error": "File not found"}, status=404)
+        except Exception:
+            return JsonResponse({"error": "File not found"}, status=404)
 
     ext = os.path.splitext(path)[1].lower()
     doc_format = ext.lstrip(".")
 
     if ext == ".pdf":
-        with open(filepath, "rb") as fh:
-            pdf_bytes = fh.read()
         raw, sentences, num_pages, chapters = PDFProcessor.extract_text(pdf_bytes, force_ocr=force_ocr)
         return JsonResponse({
             "raw": raw,
@@ -238,8 +250,10 @@ def api_search_text(request):
 
 # ── Audio Generation ──
 
-@login_required
+@csrf_exempt
 def api_tts_stream(request):
+    if not request.user.is_authenticated:
+        return JsonResponse({"error": "Authentication required"}, status=401)
     text = request.GET.get("text", "")
     voice = request.GET.get("voice", "en-US-JennyNeural")
     if not text.strip():
@@ -250,12 +264,15 @@ def api_tts_stream(request):
         return JsonResponse({"error": error}, status=500)
     response = HttpResponse(audio_bytes, content_type="audio/mpeg")
     response["Content-Disposition"] = 'inline; filename="tts.mp3"'
+    response["Cache-Control"] = "no-cache"
     return response
 
 
-@login_required
+@csrf_exempt
 def api_serve_audio(request, filename):
     """Serve generated audio files from AUDIO_DIR"""
+    if not request.user.is_authenticated:
+        return JsonResponse({"error": "Authentication required"}, status=401)
     filepath = os.path.join(settings.AUDIO_DIR, filename)
     if not os.path.exists(filepath):
         return JsonResponse({"error": "Not found"}, status=404)
@@ -265,8 +282,9 @@ def api_serve_audio(request, filename):
 
 
 @csrf_exempt
-@login_required
 def api_tts_batch(request):
+    if not request.user.is_authenticated:
+        return JsonResponse({"error": "Authentication required"}, status=401)
     if request.method != "POST":
         return JsonResponse({"error": "POST required"}, status=405)
     data = json.loads(request.body)
@@ -455,10 +473,19 @@ def api_export_zip(request):
 # ── Serve PDF bytes for PDF.js ──
 
 def api_serve_pdf(request, pdf_path):
+    if not request.user.is_authenticated:
+        return JsonResponse({"error": "Authentication required"}, status=401)
     filepath = os.path.join(settings.UPLOAD_DIR, os.path.basename(pdf_path))
-    if not os.path.exists(filepath):
-        return JsonResponse({"error": "File not found"}, status=404)
-    return FileResponse(open(filepath, "rb"), content_type="application/pdf")
+    if os.path.exists(filepath):
+        return FileResponse(open(filepath, "rb"), content_type="application/pdf")
+    # Fallback to database storage
+    try:
+        pdf = UserPDF.objects.filter(stored_path=os.path.basename(pdf_path)).first()
+        if pdf and pdf.file_data:
+            return HttpResponse(pdf.file_data, content_type="application/pdf")
+    except Exception:
+        pass
+    return JsonResponse({"error": "File not found"}, status=404)
 
 
 # ── Health Check ──

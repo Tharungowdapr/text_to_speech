@@ -6,6 +6,7 @@ class UserPDF(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="pdfs")
     original_name = models.CharField(max_length=500)
     stored_path = models.CharField(max_length=500)
+    file_data = models.BinaryField(null=True, blank=True, editable=False)
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
