@@ -1,6 +1,7 @@
 import os
 import asyncio
 import io
+import json
 import hashlib
 import logging
 from datetime import datetime, timedelta
@@ -164,7 +165,7 @@ class TTSEngine:
 
     @staticmethod
     def _generate_audio_stream_cached(text: str, voice_id: str) -> tuple:
-        """Internal cached version - checks memory cache, then tries edge_tts, gTTS, OpenAI"""
+        """Internal cached version - tries edge_tts, gTTS, HuggingFace free API"""
         cache_key = f"{text}::{voice_id}"
         if hasattr(TTSEngine, '_memory_cache') and cache_key in TTSEngine._memory_cache:
             return TTSEngine._memory_cache[cache_key], None
@@ -180,7 +181,7 @@ class TTSEngine:
                 logger.exception("edge_tts generation failed for voice=%s", voice_id)
                 edge_error = str(e)
 
-        # gTTS fallback
+        # gTTS fallback (free Google TTS)
         try:
             from gtts import gTTS
             tts = gTTS(text=text, lang="en", slow=False)
@@ -192,20 +193,25 @@ class TTSEngine:
         except Exception as e:
             logger.warning("gTTS fallback failed: %s", e)
 
-        # OpenAI TTS fallback (if API key available)
-        openai_key = os.environ.get("OPENAI_API_KEY", "")
-        if openai_key:
+        # HuggingFace Inference API fallback (free tier: 30k chars/month)
+        hf_key = os.environ.get("HF_API_TOKEN", "")
+        if hf_key:
             try:
-                import openai
-                client = openai.OpenAI(api_key=openai_key)
-                resp = client.audio.speech.create(model="tts-1", voice="nova", input=text)
-                audio_bytes = resp.content
-                if len(audio_bytes) >= 100:
-                    return audio_bytes, None
+                import urllib.request, urllib.error
+                payload = json.dumps({"inputs": text}).encode("utf-8")
+                req = urllib.request.Request(
+                    "https://api-inference.huggingface.co/models/suno/bark",
+                    data=payload,
+                    headers={"Authorization": f"Bearer {hf_key}", "Content-Type": "application/json"},
+                )
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    audio_bytes = resp.read()
+                    if len(audio_bytes) >= 100:
+                        return audio_bytes, None
             except Exception as e:
-                logger.warning("OpenAI TTS fallback failed: %s", e)
+                logger.warning("HuggingFace Bark fallback failed: %s", e)
 
-        return None, f"All TTS engines failed (edge_tts: {edge_error})"
+        return None, f"All free TTS engines failed (edge_tts: {edge_error})"
 
     @staticmethod
     def generate_audio_stream(text: str, voice_id: str = "en-US-JennyNeural") -> tuple:
