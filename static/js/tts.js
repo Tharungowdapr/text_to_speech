@@ -1,5 +1,6 @@
 (function() {
-  let sentences = [], cur = 0, playing = false, audioMap = {};
+  let sentences = [], cur = 0, playing = false, audioMap = {}, timingCache = {};
+  let wordTimingRaf = null, currentWordTimings = [];
 
   const els = {
     textarea: document.getElementById('ttsTextarea'),
@@ -44,6 +45,33 @@
     [els.playBtn, els.skipB, els.skipF, els.jumpB, els.jumpF].forEach(b => b.disabled = dis);
   }
 
+  function escapeHtml(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  function renderSentenceText(s, i) {
+    if (i !== cur || !currentWordTimings.length) return escapeHtml(s);
+    const words = currentWordTimings;
+    let html = '', pos = 0;
+    for (const w of words) {
+      const origIdx = s.toLowerCase().indexOf(w.text.toLowerCase(), pos);
+      if (origIdx === -1) {
+        html += escapeHtml(w.text) + ' ';
+        pos = s.toLowerCase().indexOf(w.text.toLowerCase());
+        if (pos === -1) pos = 0;
+        continue;
+      }
+      if (origIdx > pos) html += escapeHtml(s.slice(pos, origIdx));
+      const match = s.slice(origIdx, origIdx + w.text.length);
+      html += '<span class="word-highlight" data-offset="' + w.offset + '">' + escapeHtml(match) + '</span>';
+      pos = origIdx + w.text.length;
+    }
+    if (pos < s.length) html += escapeHtml(s.slice(pos));
+    return html;
+  }
+
   function render() {
     if (sentences.length) {
       els.emptyState.style.display = 'none';
@@ -52,7 +80,7 @@
         `<div class="sentence-item ${i===cur?'active':''} ${i<cur?'done':''}" data-i="${i}">
           <div style="display:flex;gap:8px;align-items:flex-start;">
             <span style="flex-shrink:0;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;background:${i===cur?'rgba(255,255,255,0.2)':'var(--bg-glass)'};">${i+1}</span>
-            <span>${escapeHtml(s)}</span>
+            <span>${renderSentenceText(s, i)}</span>
           </div>
         </div>`
       ).join('');
@@ -143,10 +171,60 @@
 
       playing = true;
       updatePlayIcon();
+      fetchTiming(text, voice, reqId);
     } catch(e) { showToast('Playback error', 'error'); playing = false; updatePlayIcon(); }
   }
 
-  function stop() { audio.pause(); audio.removeAttribute('src'); audio.load(); }
+  async function fetchTiming(text, voice, reqId) {
+    const cacheKey = text + '::' + voice;
+    if (timingCache[cacheKey]) {
+      if (reqId === currentPlayId) startWordHighlight(timingCache[cacheKey]);
+      return;
+    }
+    try {
+      const r = await fetch('/api/tts-timing/?text=' + encodeURIComponent(text) + '&voice=' + encodeURIComponent(voice));
+      const d = await r.json();
+      if (reqId === currentPlayId && d.words && d.words.length) {
+        timingCache[cacheKey] = d.words;
+        startWordHighlight(d.words);
+      }
+    } catch(e) {}
+  }
+
+  function startWordHighlight(words) {
+    currentWordTimings = words;
+    render();
+    if (wordTimingRaf) cancelAnimationFrame(wordTimingRaf);
+    const rate = parseFloat(els.speed.value) || 1;
+    function tick() {
+      if (!playing) return;
+      const t = audio.currentTime * rate;
+      const spans = els.sentenceList.querySelectorAll('.word-highlight');
+      spans.forEach(span => {
+        const offset = parseFloat(span.dataset.offset);
+        const nextWord = words[words.indexOf(words.find(w => Math.abs(w.offset - offset) < 0.001)) + 1];
+        const end = nextWord ? nextWord.offset : offset + 1;
+        if (t >= offset && t < end) {
+          span.style.background = 'rgba(99,102,241,0.3)';
+          span.style.borderRadius = '2px';
+        } else if (t >= end) {
+          span.style.background = 'rgba(34,197,94,0.2)';
+          span.style.borderRadius = '2px';
+        } else {
+          span.style.background = 'none';
+        }
+      });
+      wordTimingRaf = requestAnimationFrame(tick);
+    }
+    wordTimingRaf = requestAnimationFrame(tick);
+  }
+
+  function stopWordHighlight() {
+    if (wordTimingRaf) { cancelAnimationFrame(wordTimingRaf); wordTimingRaf = null; }
+    currentWordTimings = [];
+  }
+
+  function stop() { stopWordHighlight(); audio.pause(); audio.removeAttribute('src'); audio.load(); }
 
   function togglePlay() {
     if (!sentences.length) return;

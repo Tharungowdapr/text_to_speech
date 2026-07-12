@@ -316,10 +316,23 @@ def api_tts_stream(request):
 
     response = HttpResponse(audio_bytes, content_type="audio/mpeg")
     response["Content-Disposition"] = 'inline; filename="tts.mp3"'
-    response["Cache-Control"] = "public, max-age=31536000"  # cache for 1 year
+    response["Cache-Control"] = "public, max-age=31536000"
     response["Content-Length"] = str(size)
     response["Accept-Ranges"] = "bytes"
     return response
+
+
+@csrf_exempt
+def api_tts_timing(request):
+    """Return word boundary timing data for word-level highlighting"""
+    text = request.GET.get("text", "")
+    voice = request.GET.get("voice", "en-US-JennyNeural")
+    if not text.strip():
+        return JsonResponse({"error": "No text"}, status=400)
+    result, error = TTSEngine.generate_audio_stream_with_timing(text, voice)
+    if error:
+        return JsonResponse({"error": error}, status=500)
+    return JsonResponse({"words": result.get("words", [])})
 
 
 @login_required

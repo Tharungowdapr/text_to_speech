@@ -140,6 +140,24 @@ class TTSEngine:
         return audio_data.getvalue()
 
     @staticmethod
+    async def _edge_generate_stream_with_timing(text: str, voice_id: str) -> tuple:
+        """Generate audio + word boundary timing data"""
+        import edge_tts
+        communicate = edge_tts.Communicate(text, voice_id)
+        audio_data = io.BytesIO()
+        words = []
+        async for chunk in communicate.stream():
+            if chunk["type"] == "audio":
+                audio_data.write(chunk["data"])
+            elif chunk["type"] == "WordBoundary":
+                words.append({
+                    "text": chunk["text"],
+                    "offset": chunk["offset"] / 10000000,
+                    "duration": chunk["duration"] / 10000000,
+                })
+        return audio_data.getvalue(), words
+
+    @staticmethod
     def _generate_audio_stream_cached(text: str, voice_id: str) -> tuple:
         """Internal cached version - uses LRU cache for instant repeated requests"""
         # Check in-memory cache first
@@ -186,18 +204,43 @@ class TTSEngine:
 
     @staticmethod
     def generate_audio_stream(text: str, voice_id: str = "en-US-JennyNeural") -> tuple:
-        """Public method with in-memory LRU cache for instant repeated requests"""
+        """Public method with in-memory cache for instant repeated requests"""
         if not hasattr(TTSEngine, '_memory_cache'):
             TTSEngine._memory_cache = {}
-        
+
         cache_key = f"{text}::{voice_id}"
         if cache_key in TTSEngine._memory_cache:
             return TTSEngine._memory_cache[cache_key], None
-        
+
         audio_bytes, error = TTSEngine._generate_audio_stream_cached(text, voice_id)
         if not error:
             TTSEngine._memory_cache[cache_key] = audio_bytes
         return audio_bytes, error
+
+    @staticmethod
+    def generate_audio_stream_with_timing(text: str, voice_id: str = "en-US-JennyNeural") -> tuple:
+        """Generate audio + word boundary timing for word-level highlighting"""
+        if not hasattr(TTSEngine, '_timing_cache'):
+            TTSEngine._timing_cache = {}
+        timing_key = f"timing::{text}::{voice_id}"
+        if timing_key in TTSEngine._timing_cache:
+            return TTSEngine._timing_cache[timing_key], None
+
+        voice_info = VOICES.get(voice_id)
+        if voice_info:
+            try:
+                audio_bytes, words = _run_async(TTSEngine._edge_generate_stream_with_timing(text, voice_id))
+                if len(audio_bytes) >= 100:
+                    result = {"audio": audio_bytes, "words": words}
+                    TTSEngine._timing_cache[timing_key] = result
+                    return result, None
+            except Exception as e:
+                logger.warning("edge_tts timing failed for voice=%s: %s", voice_id, e)
+
+        audio_bytes, error = TTSEngine.generate_audio_stream(text, voice_id)
+        if error:
+            return None, error
+        return {"audio": audio_bytes, "words": []}, None
 
     @staticmethod
     def generate_audio_batch(texts: list, voice_id: str = "en-US-JennyNeural", max_concurrent: int = 5) -> dict:

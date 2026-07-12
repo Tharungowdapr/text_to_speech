@@ -3,6 +3,7 @@
   let nextAudio = null, speedTrain = false, trainTimer = null, pdfDoc = null;
   let completedSentences = 0;
   let localPdfUrl = null;
+  let timingCache = {}, currentWordTimings = [], wordTimingRaf = null;
 
   const els = {
     pdfInput: document.getElementById('pdfInputReader'),
@@ -292,7 +293,7 @@
           '<span style="flex-shrink:0;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;background:' + (i===cur?'rgba(255,255,255,0.2)':'var(--bg-glass)') + ';">' + (i+1) + '</span>' +
           '<div style="min-width:0;">' +
             (item.page !== undefined ? '<div style="font-size:11px;color:var(--text-tertiary);margin-bottom:2px;">pg ' + (item.page + 1) + '</div>' : '') +
-            '<span>' + escapeHtml(item.text || item) + '</span>' +
+            '<span>' + renderSentenceTextReader(item, i) + '</span>' +
           '</div>' +
         '</div>' +
       '</div>';
@@ -378,6 +379,77 @@
 
   let currentRequestId = 0;
 
+  function stopWordHighlight() {
+    if (wordTimingRaf) { cancelAnimationFrame(wordTimingRaf); wordTimingRaf = null; }
+    currentWordTimings = [];
+  }
+
+  function renderSentenceTextReader(s, i) {
+    var text = (s && s.text) ? s.text : (s || '');
+    if (i !== cur || !currentWordTimings.length) return escapeHtml(text);
+    var words = currentWordTimings;
+    var html = '', pos = 0;
+    for (var wi = 0; wi < words.length; wi++) {
+      var w = words[wi];
+      var origIdx = text.toLowerCase().indexOf(w.text.toLowerCase(), pos);
+      if (origIdx === -1) { html += escapeHtml(w.text) + ' '; continue; }
+      if (origIdx > pos) html += escapeHtml(text.slice(pos, origIdx));
+      var match = text.slice(origIdx, origIdx + w.text.length);
+      html += '<span class="word-highlight" data-offset="' + w.offset + '">' + escapeHtml(match) + '</span>';
+      pos = origIdx + w.text.length;
+    }
+    if (pos < text.length) html += escapeHtml(text.slice(pos));
+    return html;
+  }
+
+  function startWordHighlight(words) {
+    currentWordTimings = words;
+    renderSentences();
+    if (wordTimingRaf) cancelAnimationFrame(wordTimingRaf);
+    var rate = parseFloat(els.speed.value) || 1;
+    function tick() {
+      if (!playing) return;
+      var t = audio.currentTime * rate;
+      var spans = els.sentenceList.querySelectorAll('.word-highlight');
+      for (var si = 0; si < spans.length; si++) {
+        var span = spans[si];
+        var offset = parseFloat(span.dataset.offset);
+        var nextIdx = -1;
+        for (var wi = 0; wi < words.length; wi++) {
+          if (Math.abs(words[wi].offset - offset) < 0.001) { nextIdx = wi + 1; break; }
+        }
+        var end = nextIdx < words.length && nextIdx >= 0 ? words[nextIdx].offset : offset + 1;
+        if (t >= offset && t < end) {
+          span.style.background = 'rgba(99,102,241,0.3)';
+          span.style.borderRadius = '2px';
+        } else if (t >= end) {
+          span.style.background = 'rgba(34,197,94,0.2)';
+          span.style.borderRadius = '2px';
+        } else {
+          span.style.background = 'none';
+        }
+      }
+      wordTimingRaf = requestAnimationFrame(tick);
+    }
+    wordTimingRaf = requestAnimationFrame(tick);
+  }
+
+  async function fetchTiming(text, voice, reqId) {
+    var cacheKey = text + '::' + voice;
+    if (timingCache[cacheKey]) {
+      if (reqId === currentRequestId) startWordHighlight(timingCache[cacheKey]);
+      return;
+    }
+    try {
+      var r = await fetch('/api/tts-timing/?text=' + encodeURIComponent(text) + '&voice=' + encodeURIComponent(voice));
+      var d = await r.json();
+      if (reqId === currentRequestId && d.words && d.words.length) {
+        timingCache[cacheKey] = d.words;
+        startWordHighlight(d.words);
+      }
+    } catch(e) {}
+  }
+
   function play() {
     var text = getSentenceText(sentences[cur]);
     if (!text) { next(); return; }
@@ -418,9 +490,11 @@
     playing = true;
     updatePlayIcon();
     preloadNextAudio();
+    fetchTiming(text, voice, myId);
   }
 
   function stop() {
+    stopWordHighlight();
     currentRequestId++;
     audio.onended = null;
     audio.onerror = null;

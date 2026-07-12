@@ -24,6 +24,7 @@ urlpatterns = [
 
     # Audio API
     path("api/tts-stream/", views.api_tts_stream, name="api_tts_stream"),
+    path("api/tts-timing/", views.api_tts_timing, name="api_tts_timing"),
     path("api/tts-batch/", views.api_tts_batch, name="api_tts_batch"),
     path("api/languages/", views.api_languages, name="api_languages"),
     path("api/voices/", views.api_voices, name="api_voices"),
