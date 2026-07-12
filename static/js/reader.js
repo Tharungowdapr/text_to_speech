@@ -4,6 +4,7 @@
   let completedSentences = 0;
   let localPdfUrl = null;
   let timingCache = {}, currentWordTimings = [], wordTimingRaf = null;
+  let chapters = [];
 
   const els = {
     pdfInput: document.getElementById('pdfInputReader'),
@@ -41,6 +42,9 @@
     formatBadge: document.getElementById('formatBadge'),
     pdfViewerWrap: document.getElementById('pdfViewerWrap'),
     documentText: document.getElementById('documentText'),
+    chapterToggleBtn: document.getElementById('chapterToggleBtn'),
+    chapterSidebar: document.getElementById('chapterSidebar'),
+    chapterList: document.getElementById('chapterList'),
   };
 
   var audio = new Audio();
@@ -284,17 +288,20 @@
       if (d.error) { showToast(d.error, 'error'); els.extractBtn.disabled = false; els.extractText.textContent = 'Extract'; return; }
 
       sentences = d.sentences;
-      if (!sentences.length) { showToast('No text found', 'error'); els.extractBtn.disabled = false; els.extractText.textContent = 'Extract'; return; }
+      chapters = d.chapters || [];
+      if (!sentences.length) { showToast('No text found', 'error'); els.extractBtn.disabled = false; return; }
 
       if (d.ocrUsed) showToast('OCR applied (scanned PDF detected)', 'success');
 
       showToast(sentences.length + ' sentences extracted', 'success');
       renderSentences();
+      renderChapters();
       els.transport.style.display = 'flex';
       enableTransport(true);
       els.exportBtn.disabled = false;
       els.searchBtn.disabled = false;
       els.audiobookBtn.disabled = false;
+      els.chapterToggleBtn.disabled = !chapters.length;
       els.extractBtn.disabled = false; els.extractText.textContent = 'Extract';
 
       if (window._savedPos !== undefined && window._savedPos < sentences.length) {
@@ -568,6 +575,29 @@
   els.jumpB.addEventListener('click', jumpB);
   els.vol.addEventListener('input', function() { if (audio) audio.volume = parseFloat(els.vol.value); });
   els.speed.addEventListener('change', function() { if (audio) audio.playbackRate = parseFloat(els.speed.value); });
+
+  function renderChapters() {
+    if (!chapters.length) { els.chapterSidebar.style.display = 'none'; return; }
+    els.chapterList.innerHTML = chapters.map(function(ch, i) {
+      var sentenceIdx = ch.sentenceIndex !== undefined ? ch.sentenceIndex : sentences.findIndex(function(s) { return (s.text || s).toLowerCase().indexOf(ch.title.toLowerCase().slice(0, 20)) === 0; });
+      return '<div class="sentence-item chapter-item" data-si="' + (sentenceIdx >= 0 ? sentenceIdx : 0) + '" style="padding:6px 12px;font-size:12px;cursor:pointer;border-bottom:1px solid var(--border-subtle);" onmouseover="this.style.background=\'var(--bg-glass-hover)\'" onmouseout="this.style.background=\'none\'">' +
+        '<span style="color:var(--text-tertiary);font-size:10px;">Ch ' + (i + 1) + '</span> ' +
+        '<span style="color:var(--text-primary);">' + escapeHtml(ch.title) + '</span>' +
+      '</div>';
+    }).join('');
+    els.chapterList.querySelectorAll('.chapter-item').forEach(function(el) {
+      el.addEventListener('click', function() {
+        var idx = parseInt(el.dataset.si);
+        if (idx >= 0 && idx < sentences.length) goTo(idx);
+      });
+    });
+  }
+
+  els.chapterToggleBtn.addEventListener('click', function() {
+    var show = els.chapterSidebar.style.display === 'none';
+    els.chapterSidebar.style.display = show ? 'block' : 'none';
+    els.chapterToggleBtn.style.borderColor = show ? 'var(--accent)' : 'var(--border-subtle)';
+  });
 
   els.trainBtn.addEventListener('click', function() {
     speedTrain = !speedTrain;

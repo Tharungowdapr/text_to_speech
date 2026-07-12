@@ -20,7 +20,7 @@ from django.core.exceptions import ValidationError
 from django.conf import settings
 from django_ratelimit.decorators import ratelimit
 
-from .models import UserPDF, SavedText, Bookmark, ReadingPosition
+from .models import UserPDF, SavedText, Bookmark, ReadingPosition, PronunciationRule
 from .utils.pdf_processor import PDFProcessor
 from .utils.tts_engine import TTSEngine
 from .utils.document_processor import DocumentProcessor
@@ -587,6 +587,57 @@ def api_serve_pdf(request, pdf_path):
         if os.path.exists(filepath):
             return FileResponse(open(filepath, "rb"), content_type="application/pdf")
     return JsonResponse({"error": "File not found"}, status=404)
+
+
+# ── Pronunciation Rules ──
+
+@login_required
+def api_pronunciation_rules(request):
+    rules = PronunciationRule.objects.filter(user=request.user)
+    data = [{"id": r.id, "word": r.word, "replacement": r.replacement, "enabled": r.enabled} for r in rules]
+    return JsonResponse(data, safe=False)
+
+
+@csrf_exempt
+@login_required
+def api_save_pronunciation_rule(request):
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=405)
+    data = json.loads(request.body)
+    word = data.get("word", "").strip().lower()
+    replacement = data.get("replacement", "").strip()
+    if not word or not replacement:
+        return JsonResponse({"error": "Word and replacement required"}, status=400)
+    rule, created = PronunciationRule.objects.update_or_create(
+        user=request.user, word=word,
+        defaults={"replacement": replacement, "enabled": True}
+    )
+    return JsonResponse({"ok": True, "id": rule.id, "created": created})
+
+
+@csrf_exempt
+@login_required
+def api_delete_pronunciation_rule(request, rule_id):
+    if request.method != "DELETE":
+        return JsonResponse({"error": "DELETE required"}, status=405)
+    PronunciationRule.objects.filter(id=rule_id, user=request.user).delete()
+    return JsonResponse({"ok": True})
+
+
+@csrf_exempt
+@login_required
+def api_apply_pronunciation(request):
+    """Apply pronunciation rules to text before TTS (called by frontend)."""
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=405)
+    data = json.loads(request.body)
+    text = data.get("text", "")
+    rules = PronunciationRule.objects.filter(user=request.user, enabled=True)
+    for rule in rules:
+        import re
+        pattern = re.compile(r'\b' + re.escape(rule.word) + r'\b', re.IGNORECASE)
+        text = pattern.sub(rule.replacement, text)
+    return JsonResponse({"text": text})
 
 
 # ── Health Check ──

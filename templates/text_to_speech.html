@@ -25,6 +25,10 @@
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2z"/></svg>
           Generate All Audio
         </button>
+        <button id="pronunciationBtn" class="btn" title="Pronunciation rules">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 5h12M9 3v2m1.048 9.5A18.022 18.022 0 016.412 9m6.088 9h7M11 21l5-10 5 10M12.751 5C11.783 10.77 8.07 15.61 3 18.129"/></svg>
+          Pronunciation
+        </button>
       </div>
 
       <!-- Batch progress bar -->
@@ -100,6 +104,22 @@
       <button id="closeSavedModal" class="btn" style="padding:2px 8px;">Close</button>
     </div>
     <div id="savedTextList" style="max-height:60vh;overflow-y:auto;"></div>
+  </div>
+</div>
+
+<div id="pronunciationModal" class="modal-overlay" style="display:none;">
+  <div class="modal-card" style="max-width:480px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <span style="font-weight:600;font-size:14px;">Pronunciation Rules</span>
+      <button id="closePronModal" class="btn" style="padding:2px 8px;">Close</button>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:12px;">
+      <input id="pronWord" class="input" placeholder="Word" style="flex:1;padding:6px 10px;font-size:12px;">
+      <input id="pronReplacement" class="input" placeholder="Pronounce as..." style="flex:1;padding:6px 10px;font-size:12px;">
+      <button id="pronAddBtn" class="btn btn-accent" style="padding:6px 12px;font-size:12px;">Add</button>
+    </div>
+    <div id="pronRulesList" style="max-height:40vh;overflow-y:auto;"></div>
+    <div style="font-size:11px;color:var(--text-tertiary);margin-top:8px;">Rules are applied to all text before speech generation. Use phonetic spelling for best results.</div>
   </div>
 </div>
 {% endblock %}

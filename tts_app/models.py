@@ -57,3 +57,16 @@ class ReadingPosition(models.Model):
     class Meta:
         ordering = ["-updated_at"]
         unique_together = ["user", "pdf_path"]
+
+
+class PronunciationRule(models.Model):
+    """User-defined pronunciation overrides applied before TTS."""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="pronunciation_rules")
+    word = models.CharField(max_length=200)
+    replacement = models.CharField(max_length=500)
+    enabled = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["word"]
+        unique_together = ["user", "word"]

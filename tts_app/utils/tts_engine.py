@@ -60,12 +60,17 @@ FALLBACK_LANG_MAP = {
 
 
 def _run_async(coro):
-    """Run async coroutine in a new event loop - safe for serverless"""
-    loop = asyncio.new_event_loop()
+    """Run async coroutine - reuses event loop if possible"""
     try:
-        return loop.run_until_complete(coro)
-    finally:
-        loop.close()
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+    if loop and loop.is_running():
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor() as pool:
+            future = pool.submit(asyncio.run, coro)
+            return future.result()
+    return asyncio.run(coro)
 
 
 class TTSEngine:
@@ -159,12 +164,12 @@ class TTSEngine:
 
     @staticmethod
     def _generate_audio_stream_cached(text: str, voice_id: str) -> tuple:
-        """Internal cached version - uses LRU cache for instant repeated requests"""
-        # Check in-memory cache first
+        """Internal cached version - checks memory cache, then tries edge_tts, gTTS, OpenAI"""
         cache_key = f"{text}::{voice_id}"
         if hasattr(TTSEngine, '_memory_cache') and cache_key in TTSEngine._memory_cache:
             return TTSEngine._memory_cache[cache_key], None
-        
+
+        edge_error = None
         voice_info = VOICES.get(voice_id)
         if voice_info:
             try:
@@ -174,33 +179,33 @@ class TTSEngine:
             except Exception as e:
                 logger.exception("edge_tts generation failed for voice=%s", voice_id)
                 edge_error = str(e)
-                if "NoAudioReceived" in str(e):
-                    logger.warning("edge_tts NoAudioReceived for voice=%s, falling back to gTTS", voice_id)
-            try:
-                from gtts import gTTS
-                tts = gTTS(text=text, lang="en", slow=False)
-                audio_data = io.BytesIO()
-                tts.write_to_fp(audio_data)
-                audio_bytes = audio_data.getvalue()
-                if len(audio_bytes) >= 100:
-                    return audio_bytes, None
-            except Exception as e:
-                logger.exception("gTTS fallback also failed")
-                return None, f"edge_tts failed ({edge_error}); gTTS fallback failed ({e})"
-            return None, f"edge_tts failed: {edge_error}"
+
+        # gTTS fallback
         try:
             from gtts import gTTS
-            lang = voice_id if voice_id in FALLBACK_LANG_MAP else "en"
-            tts = gTTS(text=text, lang=lang, slow=False)
+            tts = gTTS(text=text, lang="en", slow=False)
             audio_data = io.BytesIO()
             tts.write_to_fp(audio_data)
             audio_bytes = audio_data.getvalue()
             if len(audio_bytes) >= 100:
                 return audio_bytes, None
         except Exception as e:
-            logger.exception("gTTS generation failed for voice=%s", voice_id)
-            return None, f"gTTS failed: {e}"
-        return None, "Audio generation failed (empty output)"
+            logger.warning("gTTS fallback failed: %s", e)
+
+        # OpenAI TTS fallback (if API key available)
+        openai_key = os.environ.get("OPENAI_API_KEY", "")
+        if openai_key:
+            try:
+                import openai
+                client = openai.OpenAI(api_key=openai_key)
+                resp = client.audio.speech.create(model="tts-1", voice="nova", input=text)
+                audio_bytes = resp.content
+                if len(audio_bytes) >= 100:
+                    return audio_bytes, None
+            except Exception as e:
+                logger.warning("OpenAI TTS fallback failed: %s", e)
+
+        return None, f"All TTS engines failed (edge_tts: {edge_error})"
 
     @staticmethod
     def generate_audio_stream(text: str, voice_id: str = "en-US-JennyNeural") -> tuple:

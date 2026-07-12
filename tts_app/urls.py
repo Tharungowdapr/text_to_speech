@@ -55,6 +55,12 @@ urlpatterns = [
     # Supported formats
     path("api/formats/", views.api_formats, name="api_formats"),
 
+    # Pronunciation rules
+    path("api/pronunciation-rules/", views.api_pronunciation_rules, name="api_pronunciation_rules"),
+    path("api/pronunciation-rules/save/", views.api_save_pronunciation_rule, name="api_save_pronunciation_rule"),
+    path("api/pronunciation-rules/<int:rule_id>/delete/", views.api_delete_pronunciation_rule, name="api_delete_pronunciation_rule"),
+    path("api/pronunciation-rules/apply/", views.api_apply_pronunciation, name="api_apply_pronunciation"),
+
     # Serve + health
     path("api/serve-pdf/<path:pdf_path>/", views.api_serve_pdf, name="api_serve_pdf"),
     path("api/health/", views.api_health, name="api_health"),

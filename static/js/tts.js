@@ -149,14 +149,24 @@
   let currentPlayId = 0;
 
   async function play() {
-    const text = sentences[cur];
+    var text = sentences[cur];
     if (!text) { next(); return; }
     try {
-      const voice = els.voiceSelect.value;
+      var voice = els.voiceSelect.value;
       stop();
       currentPlayId++;
-      const reqId = currentPlayId;
+      var reqId = currentPlayId;
       els.playIcon.innerHTML = '<div class="spinner" style="width:16px;height:16px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;"></div>';
+
+      // Apply pronunciation rules
+      try {
+        var pr = await fetch('/api/pronunciation-rules/apply/', {
+          method: 'POST', headers: {'Content-Type':'application/json','X-CSRFToken':getCSRFToken()},
+          body: JSON.stringify({text: text})
+        });
+        var pd = await pr.json();
+        if (pd.text) text = pd.text;
+      } catch(e) {}
 
       audio.src = '/api/tts-stream/?text=' + encodeURIComponent(text) + '&voice=' + encodeURIComponent(voice);
       audio.volume = parseFloat(els.vol.value) || 1;
@@ -315,6 +325,47 @@
     URL.revokeObjectURL(a.href);
     showToast('Text exported', 'success');
   });
+
+  // Pronunciation rules
+  var pronModal = document.getElementById('pronunciationModal');
+  var pronList = document.getElementById('pronRulesList');
+  var pronWord = document.getElementById('pronWord');
+  var pronReplacement = document.getElementById('pronReplacement');
+
+  document.getElementById('pronunciationBtn').addEventListener('click', async function() {
+    pronModal.style.display = 'flex';
+    await loadPronRules();
+  });
+  document.getElementById('closePronModal').addEventListener('click', function() { pronModal.style.display = 'none'; });
+  pronModal.addEventListener('click', function(e) { if (e.target === pronModal) pronModal.style.display = 'none'; });
+
+  document.getElementById('pronAddBtn').addEventListener('click', async function() {
+    var w = pronWord.value.trim(), r = pronReplacement.value.trim();
+    if (!w || !r) return;
+    await fetch('/api/pronunciation-rules/save/', {
+      method: 'POST', headers: {'Content-Type':'application/json','X-CSRFToken':getCSRFToken()},
+      body: JSON.stringify({word: w, replacement: r})
+    });
+    pronWord.value = ''; pronReplacement.value = '';
+    await loadPronRules();
+    showToast('Rule added', 'success');
+  });
+
+  async function loadPronRules() {
+    var r = await fetch('/api/pronunciation-rules/');
+    var rules = await r.json();
+    pronList.innerHTML = rules.length ? rules.map(function(rule) {
+      return '<div style="display:flex;align-items:center;justify-content:space-between;padding:8px;border-bottom:1px solid var(--border-subtle);font-size:12px;">' +
+        '<span><strong>' + escapeHtml(rule.word) + '</strong> &rarr; ' + escapeHtml(rule.replacement) + '</span>' +
+        '<button class="btn" style="padding:2px 6px;font-size:11px;color:var(--error);" onclick="window.delPronRule(' + rule.id + ')">Remove</button>' +
+      '</div>';
+    }).join('') : '<div style="text-align:center;padding:20px;color:var(--text-tertiary);">No rules yet. Add one above.</div>';
+  }
+
+  window.delPronRule = async function(id) {
+    await fetch('/api/pronunciation-rules/' + id + '/delete/', { method: 'DELETE', headers: {'X-CSRFToken': getCSRFToken()} });
+    await loadPronRules();
+  };
 
   document.addEventListener('keydown', e => {
     if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') return;
