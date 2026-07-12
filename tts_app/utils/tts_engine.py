@@ -1,7 +1,6 @@
 import os
 import asyncio
 import io
-import json
 import hashlib
 import logging
 from datetime import datetime, timedelta
@@ -117,9 +116,22 @@ class TTSEngine:
                 lang = voice_id if voice_id in FALLBACK_LANG_MAP else "en"
                 tts = gTTS(text=text, lang=lang, slow=False)
                 tts.save(filepath)
-                
+
             if os.path.getsize(filepath) < 100:
                 os.remove(filepath)
+                # Try espeak-ng as last resort
+                try:
+                    import subprocess
+                    subprocess.run(
+                        ["espeak-ng", "-w", filepath, "-s", "150", "-v", "en", text[:4000]],
+                        check=True, capture_output=True, timeout=30,
+                    )
+                    if os.path.getsize(filepath) >= 100:
+                        with open(filepath, "rb") as f:
+                            AudioCache.objects.create(cache_key=cache_key, audio_data=f.read())
+                        return filename, None
+                except Exception:
+                    pass
                 return None, "Audio generation failed (empty output)"
                 
             with open(filepath, "rb") as f:
@@ -165,7 +177,7 @@ class TTSEngine:
 
     @staticmethod
     def _generate_audio_stream_cached(text: str, voice_id: str) -> tuple:
-        """Internal cached version - tries edge_tts, gTTS, HuggingFace free API"""
+        """Internal cached version - tries edge_tts, gTTS, espeak-ng (all free, no API keys)"""
         cache_key = f"{text}::{voice_id}"
         if hasattr(TTSEngine, '_memory_cache') and cache_key in TTSEngine._memory_cache:
             return TTSEngine._memory_cache[cache_key], None
@@ -181,7 +193,7 @@ class TTSEngine:
                 logger.exception("edge_tts generation failed for voice=%s", voice_id)
                 edge_error = str(e)
 
-        # gTTS fallback (free Google TTS)
+        # gTTS fallback (free Google Translate TTS, no key needed)
         try:
             from gtts import gTTS
             tts = gTTS(text=text, lang="en", slow=False)
@@ -193,25 +205,24 @@ class TTSEngine:
         except Exception as e:
             logger.warning("gTTS fallback failed: %s", e)
 
-        # HuggingFace Inference API fallback (free tier: 30k chars/month)
-        hf_key = os.environ.get("HF_API_TOKEN", "")
-        if hf_key:
-            try:
-                import urllib.request, urllib.error
-                payload = json.dumps({"inputs": text}).encode("utf-8")
-                req = urllib.request.Request(
-                    "https://api-inference.huggingface.co/models/suno/bark",
-                    data=payload,
-                    headers={"Authorization": f"Bearer {hf_key}", "Content-Type": "application/json"},
-                )
-                with urllib.request.urlopen(req, timeout=30) as resp:
-                    audio_bytes = resp.read()
-                    if len(audio_bytes) >= 100:
-                        return audio_bytes, None
-            except Exception as e:
-                logger.warning("HuggingFace Bark fallback failed: %s", e)
+        # espeak-ng fallback (fully offline, no API needed)
+        try:
+            import subprocess, tempfile
+            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+                tmp_path = tmp.name
+            subprocess.run(
+                ["espeak-ng", "-w", tmp_path, "-s", "150", "-v", "en", text[:4000]],
+                check=True, capture_output=True, timeout=30,
+            )
+            with open(tmp_path, "rb") as f:
+                audio_bytes = f.read()
+            os.unlink(tmp_path)
+            if len(audio_bytes) >= 100:
+                return audio_bytes, None
+        except Exception as e:
+            logger.warning("espeak-ng fallback failed: %s", e)
 
-        return None, f"All free TTS engines failed (edge_tts: {edge_error})"
+        return None, f"All TTS engines failed (edge_tts: {edge_error})"
 
     @staticmethod
     def generate_audio_stream(text: str, voice_id: str = "en-US-JennyNeural") -> tuple:
