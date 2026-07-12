@@ -49,16 +49,42 @@
 
   loadVoiceSelect(els.voiceSelect, 'en-US-JennyNeural');
 
-  els.pdfInput.addEventListener('change', async function(e) {
+  els.pdfInput.addEventListener('change', function(e) {
     var f = e.target.files?.[0]; if (!f) return;
     if (localPdfUrl) URL.revokeObjectURL(localPdfUrl);
     localPdfUrl = URL.createObjectURL(f);
     var fd = new FormData(); fd.append('file', f);
-    var r = await fetch('/api/upload-pdf/', { method: 'POST', body: fd, headers: {'X-CSRFToken': getCSRFToken()} });
-    var d = await r.json();
-    if (d.error) { showToast(d.error, 'error'); return; }
-    window.history.replaceState(null, '', '/reader/?path=' + encodeURIComponent(d.path));
-    loadPdf(d.path, d.name);
+
+    var uploadEl = document.getElementById('uploadProgress');
+    var uploadBar = document.getElementById('uploadProgressBar');
+    var uploadPct = document.getElementById('uploadProgressPct');
+    var uploadText = document.getElementById('uploadProgressText');
+    if (uploadEl) { uploadEl.style.display = 'block'; uploadBar.style.width = '0%'; uploadPct.textContent = '0%'; uploadText.textContent = 'Uploading...'; }
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/upload-pdf/');
+    xhr.setRequestHeader('X-CSRFToken', getCSRFToken());
+    xhr.upload.onprogress = function(ev) {
+      if (ev.lengthComputable) {
+        var pct = Math.round((ev.loaded / ev.total) * 100);
+        if (uploadBar) uploadBar.style.width = pct + '%';
+        if (uploadPct) uploadPct.textContent = pct + '%';
+        if (uploadText) uploadText.textContent = pct < 100 ? 'Uploading...' : 'Processing...';
+      }
+    };
+    xhr.onload = function() {
+      if (uploadEl) uploadEl.style.display = 'none';
+      var d;
+      try { d = JSON.parse(xhr.responseText); } catch(e) { showToast('Upload failed', 'error'); return; }
+      if (d.error) { showToast(d.error, 'error'); return; }
+      window.history.replaceState(null, '', '/reader/?path=' + encodeURIComponent(d.path));
+      loadPdf(d.path, d.name);
+    };
+    xhr.onerror = function() {
+      if (uploadEl) uploadEl.style.display = 'none';
+      showToast('Upload failed', 'error');
+    };
+    xhr.send(fd);
   });
 
   async function loadPdf(path, name) {
@@ -406,10 +432,9 @@
     currentWordTimings = words;
     renderSentences();
     if (wordTimingRaf) cancelAnimationFrame(wordTimingRaf);
-    var rate = parseFloat(els.speed.value) || 1;
     function tick() {
       if (!playing) return;
-      var t = audio.currentTime * rate;
+      var t = audio.currentTime;
       var spans = els.sentenceList.querySelectorAll('.word-highlight');
       for (var si = 0; si < spans.length; si++) {
         var span = spans[si];
@@ -499,8 +524,9 @@
     audio.onended = null;
     audio.onerror = null;
     audio.pause();
-    audio.src = '';
-    if (nextAudio) { nextAudio.src = ''; nextAudio = null; }
+    audio.removeAttribute('src');
+    audio.load();
+    if (nextAudio) { nextAudio.removeAttribute('src'); nextAudio.load(); nextAudio = null; }
   }
 
   function markCompleted(idx) {

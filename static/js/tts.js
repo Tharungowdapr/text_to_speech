@@ -24,7 +24,7 @@
   loadVoiceSelect(els.voiceSelect, 'en-US-JennyNeural');
 
   function parseSentences(text) {
-    return text.replace(/([.!?])\s+/g,'$1|').replace(/([.!?])([A-Z])/g,'$1|$2').split('|').map(s=>s.trim()).filter(s=>s.length>0);
+    return text.replace(/\s+/g,' ').trim().split(/(?<=[.!?])\s+/).map(s=>s.trim()).filter(s=>s.length>0);
   }
 
   const audio = new Audio();
@@ -195,15 +195,14 @@
     currentWordTimings = words;
     render();
     if (wordTimingRaf) cancelAnimationFrame(wordTimingRaf);
-    const rate = parseFloat(els.speed.value) || 1;
     function tick() {
       if (!playing) return;
-      const t = audio.currentTime * rate;
-      const spans = els.sentenceList.querySelectorAll('.word-highlight');
+      var t = audio.currentTime;
+      var spans = els.sentenceList.querySelectorAll('.word-highlight');
       spans.forEach(span => {
-        const offset = parseFloat(span.dataset.offset);
-        const nextWord = words[words.indexOf(words.find(w => Math.abs(w.offset - offset) < 0.001)) + 1];
-        const end = nextWord ? nextWord.offset : offset + 1;
+        var offset = parseFloat(span.dataset.offset);
+        var nextWord = words[words.findIndex(w => Math.abs(w.offset - offset) < 0.001) + 1];
+        var end = nextWord ? nextWord.offset : offset + 1;
         if (t >= offset && t < end) {
           span.style.background = 'rgba(99,102,241,0.3)';
           span.style.borderRadius = '2px';
