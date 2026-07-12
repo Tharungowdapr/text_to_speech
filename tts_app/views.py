@@ -20,7 +20,7 @@ from django.core.exceptions import ValidationError
 from django.conf import settings
 from django_ratelimit.decorators import ratelimit
 
-from .models import UserPDF, SavedText, Bookmark
+from .models import UserPDF, SavedText, Bookmark, ReadingPosition
 from .utils.pdf_processor import PDFProcessor
 from .utils.tts_engine import TTSEngine
 from .utils.document_processor import DocumentProcessor
@@ -114,6 +114,8 @@ def api_upload_pdf(request):
     f = request.FILES.get("file")
     if not f:
         return JsonResponse({"error": "No file"}, status=400)
+    if f.size > settings.MAX_UPLOAD_SIZE:
+        return JsonResponse({"error": f"File too large. Max {settings.MAX_UPLOAD_SIZE_MB}MB"}, status=400)
 
     is_valid = f.name.lower().endswith(".pdf") or DocumentProcessor.is_supported(f.name)
     if not is_valid:
@@ -147,6 +149,9 @@ def api_upload_batch_pdf(request):
     files = request.FILES.getlist("files")
     if not files:
         return JsonResponse({"error": "No files"}, status=400)
+    oversized = [f.name for f in files if f.size > settings.MAX_UPLOAD_SIZE]
+    if oversized:
+        return JsonResponse({"error": f"Files too large ({', '.join(oversized)}). Max {settings.MAX_UPLOAD_SIZE_MB}MB each"}, status=400)
 
     results = []
     for f in files:
@@ -275,28 +280,9 @@ def api_search_text(request):
 
 # ── File Serving (PDF & Audio) ──
 
-@login_required
-def api_serve_audio(request, filename):
-    cache_key = filename.replace(".mp3", "")
-    from tts_app.models import AudioCache
-    
-    # Try local disk first
-    filepath = os.path.join(settings.AUDIO_DIR, filename)
-    if os.path.exists(filepath):
-        return FileResponse(open(filepath, "rb"), content_type="audio/mpeg")
-        
-    # Fallback to DB
-    cache_obj = AudioCache.objects.filter(cache_key=cache_key).first()
-    if cache_obj:
-        return HttpResponse(cache_obj.audio_data, content_type="audio/mpeg")
-        
-    return JsonResponse({"error": "Audio file not found"}, status=404)
-
-
 # ── Audio Generation ──
 
 @csrf_exempt
-@ratelimit(key='user_or_ip', rate='60/m', method='GET', block=True)
 def api_tts_stream(request):
     text = request.GET.get("text", "")
     voice = request.GET.get("voice", "en-US-JennyNeural")
@@ -330,24 +316,32 @@ def api_tts_stream(request):
 
     response = HttpResponse(audio_bytes, content_type="audio/mpeg")
     response["Content-Disposition"] = 'inline; filename="tts.mp3"'
-    response["Cache-Control"] = "no-cache"
+    response["Cache-Control"] = "public, max-age=31536000"  # cache for 1 year
     response["Content-Length"] = str(size)
     response["Accept-Ranges"] = "bytes"
     return response
 
 
-@csrf_exempt
+@login_required
 def api_serve_audio(request, filename):
-    """Serve generated audio files from AUDIO_DIR"""
-    if not request.user.is_authenticated:
-        return JsonResponse({"error": "Authentication required"}, status=401)
+    """Serve generated audio files from AUDIO_DIR with DB fallback"""
     filename = unquote(filename)
+    cache_key = filename.replace(".mp3", "")
+    from tts_app.models import AudioCache
+
+    # Try local disk first
     filepath = os.path.join(settings.AUDIO_DIR, filename)
-    if not os.path.exists(filepath):
-        return JsonResponse({"error": "Not found"}, status=404)
-    response = FileResponse(open(filepath, "rb"), content_type="audio/mpeg")
-    response["Content-Disposition"] = f'inline; filename="{filename}"'
-    return response
+    if os.path.exists(filepath):
+        response = FileResponse(open(filepath, "rb"), content_type="audio/mpeg")
+        response["Content-Disposition"] = f'inline; filename="{filename}"'
+        return response
+
+    # Fallback to DB
+    cache_obj = AudioCache.objects.filter(cache_key=cache_key).first()
+    if cache_obj:
+        return HttpResponse(cache_obj.audio_data, content_type="audio/mpeg")
+
+    return JsonResponse({"error": "Audio file not found"}, status=404)
 
 
 @login_required
@@ -462,52 +456,57 @@ def api_delete_bookmark(request, bookmark_id):
     return JsonResponse({"ok": True})
 
 
-# ── Reading Position ──
+# ── Reading Position (DB-persisted) ──
 
 @login_required
 def api_save_position(request):
     if request.method != "POST":
         return JsonResponse({"error": "POST required"}, status=405)
     data = json.loads(request.body)
-    positions = request.session.get("reading_positions", {})
-    positions[data.get("pdfPath", "_")] = {
-        "sentenceIndex": data.get("sentenceIndex", 0),
-        "timestamp": datetime.now().isoformat()
-    }
-    request.session["reading_positions"] = positions
+    pdf_path = data.get("pdfPath", "_")
+    ReadingPosition.objects.update_or_create(
+        user=request.user,
+        pdf_path=pdf_path,
+        defaults={"sentence_index": data.get("sentenceIndex", 0)}
+    )
     return JsonResponse({"ok": True})
 
 
 @login_required
 def api_get_position(request):
     pdf_path = request.GET.get("path", "")
-    positions = request.session.get("reading_positions", {})
-    return JsonResponse(positions.get(pdf_path, {}))
+    pos = ReadingPosition.objects.filter(user=request.user, pdf_path=pdf_path).first()
+    if pos:
+        return JsonResponse({"sentenceIndex": pos.sentence_index})
+    return JsonResponse({})
 
 
-# ── Reading Progress ──
+# ── Reading Progress (DB-persisted) ──
 
 @login_required
 def api_save_progress(request):
     if request.method != "POST":
         return JsonResponse({"error": "POST required"}, status=405)
     data = json.loads(request.body)
-    progress = request.session.get("reading_progress", {})
-    key = data.get("pdfPath", "_")
-    entry = progress.get(key, {"completed": 0, "total": 0})
-    entry["completed"] = data.get("completed", entry["completed"])
-    entry["total"] = data.get("total", entry["total"])
-    entry["timestamp"] = datetime.now().isoformat()
-    progress[key] = entry
-    request.session["reading_progress"] = progress
+    pdf_path = data.get("pdfPath", "_")
+    ReadingPosition.objects.update_or_create(
+        user=request.user,
+        pdf_path=pdf_path,
+        defaults={
+            "completed": data.get("completed", 0),
+            "total": data.get("total", 0),
+        }
+    )
     return JsonResponse({"ok": True})
 
 
 @login_required
 def api_get_progress(request):
     pdf_path = request.GET.get("path", "")
-    progress = request.session.get("reading_progress", {})
-    return JsonResponse(progress.get(pdf_path, {"completed": 0, "total": 0}))
+    pos = ReadingPosition.objects.filter(user=request.user, pdf_path=pdf_path).first()
+    if pos:
+        return JsonResponse({"completed": pos.completed, "total": pos.total})
+    return JsonResponse({"completed": 0, "total": 0})
 
 
 # ── Export Audiobook (ZIP with chapters + playlist) ──

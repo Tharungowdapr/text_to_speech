@@ -27,6 +27,7 @@
   }
 
   const audio = new Audio();
+  audio.onended = () => { if (playing) next(); };
 
   els.textarea.addEventListener('input', () => {
     const t = els.textarea.value.trim();
@@ -140,13 +141,12 @@
         updatePlayIcon();
       });
 
-      audio.addEventListener('ended', () => next());
       playing = true;
       updatePlayIcon();
     } catch(e) { showToast('Playback error', 'error'); playing = false; updatePlayIcon(); }
   }
 
-  function stop() { audio.pause(); audio.src = ''; }
+  function stop() { audio.pause(); audio.removeAttribute('src'); audio.load(); }
 
   function togglePlay() {
     if (!sentences.length) return;

@@ -92,10 +92,13 @@ LOGIN_URL = "/login/"
 LOGIN_REDIRECT_URL = "/"
 LOGOUT_REDIRECT_URL = "/"
 
-UPLOAD_DIR = Path(os.environ.get("DJANGO_UPLOAD_DIR", BASE_DIR / "static" / "uploads"))
-AUDIO_DIR = Path(os.environ.get("DJANGO_AUDIO_DIR", BASE_DIR / "static" / "audio"))
+UPLOAD_DIR = Path(os.environ.get("DJANGO_UPLOAD_DIR", BASE_DIR / "uploads"))
+AUDIO_DIR = Path(os.environ.get("DJANGO_AUDIO_DIR", BASE_DIR / "audio_cache"))
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(AUDIO_DIR, exist_ok=True)
+
+MAX_UPLOAD_SIZE_MB = int(os.environ.get("MAX_UPLOAD_SIZE_MB", 50))
+MAX_UPLOAD_SIZE = MAX_UPLOAD_SIZE_MB * 1024 * 1024
 
 USE_SSL = os.environ.get("DJANGO_SSL", "false").lower() == "true"
 

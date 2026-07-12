@@ -16,10 +16,9 @@ os.environ.setdefault("DJANGO_AUDIO_DIR", "/tmp/audio")
 import django
 django.setup()
 
-# Auto-migrate and create cache table on cold start
+# Auto-migrate on cold start
 from django.core.management import call_command
 call_command("migrate", "--noinput")
-call_command("createcachetable")
 
 static_root = os.path.join(project_root, "static")
 

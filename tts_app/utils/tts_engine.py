@@ -1,13 +1,15 @@
 import os
-import uuid
 import asyncio
 import io
 import hashlib
 import logging
+from datetime import datetime, timedelta
 from django.conf import settings
-from django.core.files.base import ContentFile
 
 logger = logging.getLogger(__name__)
+
+AUDIO_CACHE_MAX_AGE_DAYS = 7
+AUDIO_CACHE_MAX_ENTRIES = 10000
 
 VOICES = {
     "en-US-JennyNeural": {"lang": "en", "gender": "Female", "name": "Jenny (US Female)"},
@@ -68,6 +70,17 @@ def _run_async(coro):
 
 class TTSEngine:
     @staticmethod
+    def prune_audio_cache():
+        """Delete old AudioCache entries to prevent unbounded growth."""
+        from tts_app.models import AudioCache
+        cutoff = datetime.now() - timedelta(days=AUDIO_CACHE_MAX_AGE_DAYS)
+        AudioCache.objects.filter(created_at__lt=cutoff).delete()
+        count = AudioCache.objects.count()
+        if count > AUDIO_CACHE_MAX_ENTRIES:
+            ids_to_delete = AudioCache.objects.order_by('created_at').values_list('id', flat=True)[:count - AUDIO_CACHE_MAX_ENTRIES]
+            AudioCache.objects.filter(id__in=list(ids_to_delete)).delete()
+
+    @staticmethod
     def _get_cache_key(text: str, voice_id: str) -> str:
         return hashlib.sha256(f"{text}::{voice_id}".encode('utf-8')).hexdigest()
 
@@ -127,7 +140,13 @@ class TTSEngine:
         return audio_data.getvalue()
 
     @staticmethod
-    def generate_audio_stream(text: str, voice_id: str = "en-US-JennyNeural") -> tuple:
+    def _generate_audio_stream_cached(text: str, voice_id: str) -> tuple:
+        """Internal cached version - uses LRU cache for instant repeated requests"""
+        # Check in-memory cache first
+        cache_key = f"{text}::{voice_id}"
+        if hasattr(TTSEngine, '_memory_cache') and cache_key in TTSEngine._memory_cache:
+            return TTSEngine._memory_cache[cache_key], None
+        
         voice_info = VOICES.get(voice_id)
         if voice_info:
             try:
@@ -164,6 +183,21 @@ class TTSEngine:
             logger.exception("gTTS generation failed for voice=%s", voice_id)
             return None, f"gTTS failed: {e}"
         return None, "Audio generation failed (empty output)"
+
+    @staticmethod
+    def generate_audio_stream(text: str, voice_id: str = "en-US-JennyNeural") -> tuple:
+        """Public method with in-memory LRU cache for instant repeated requests"""
+        if not hasattr(TTSEngine, '_memory_cache'):
+            TTSEngine._memory_cache = {}
+        
+        cache_key = f"{text}::{voice_id}"
+        if cache_key in TTSEngine._memory_cache:
+            return TTSEngine._memory_cache[cache_key], None
+        
+        audio_bytes, error = TTSEngine._generate_audio_stream_cached(text, voice_id)
+        if not error:
+            TTSEngine._memory_cache[cache_key] = audio_bytes
+        return audio_bytes, error
 
     @staticmethod
     def generate_audio_batch(texts: list, voice_id: str = "en-US-JennyNeural", max_concurrent: int = 5) -> dict:
@@ -225,6 +259,7 @@ class TTSEngine:
             await asyncio.gather(*tasks)
 
         _run_async(_run())
+        TTSEngine.prune_audio_cache()
         return results
 
     @staticmethod

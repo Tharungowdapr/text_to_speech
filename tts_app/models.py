@@ -37,9 +37,23 @@ class Bookmark(models.Model):
 
 class AudioCache(models.Model):
     """Cached TTS audio stored in DB so it survives disk resets."""
-    cache_key = models.CharField(max_length=64, unique=True, db_index=True)  # sha256(text+voice)
+    cache_key = models.CharField(max_length=64, unique=True, db_index=True)
     audio_data = models.BinaryField()
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ["-created_at"]
+
+
+class ReadingPosition(models.Model):
+    """Persist reading position in DB so it survives across devices and sessions."""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="reading_positions")
+    pdf_path = models.CharField(max_length=500)
+    sentence_index = models.IntegerField(default=0)
+    completed = models.IntegerField(default=0)
+    total = models.IntegerField(default=0)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-updated_at"]
+        unique_together = ["user", "pdf_path"]
