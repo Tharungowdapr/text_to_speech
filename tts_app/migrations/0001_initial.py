@@ -48,7 +48,11 @@ class Migration(migrations.Migration):
                 ('label', models.CharField(default='', max_length=300)),
                 ('timestamp', models.DateTimeField(auto_now_add=True)),
                 ('user', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='bookmarks', to=settings.AUTH_USER_MODEL)),
-                ('pdf_file', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, to='tts_app.userpdf')),
+                ('pdf_file', models.ForeignKey(
+                    blank=True, null=True,
+                    on_delete=django.db.models.deletion.CASCADE,
+                    to='tts_app.userpdf',
+                )),
             ],
             options={
                 'ordering': ['-timestamp'],

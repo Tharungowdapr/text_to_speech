@@ -82,7 +82,11 @@ class TTSEngine:
         AudioCache.objects.filter(created_at__lt=cutoff).delete()
         count = AudioCache.objects.count()
         if count > AUDIO_CACHE_MAX_ENTRIES:
-            ids_to_delete = AudioCache.objects.order_by('created_at').values_list('id', flat=True)[:count - AUDIO_CACHE_MAX_ENTRIES]
+            ids_to_delete = AudioCache.objects.order_by(
+                'created_at'
+            ).values_list('id', flat=True)[
+                :count - AUDIO_CACHE_MAX_ENTRIES
+            ]
             AudioCache.objects.filter(id__in=list(ids_to_delete)).delete()
 
     @staticmethod
@@ -93,7 +97,7 @@ class TTSEngine:
     def generate_audio(text: str, voice_id: str = "en-US-JennyNeural") -> tuple:
         from tts_app.models import AudioCache
         cache_key = TTSEngine._get_cache_key(text, voice_id)
-        
+
         # Check DB cache
         cache_obj = AudioCache.objects.filter(cache_key=cache_key).first()
         filename = f"{cache_key}.mp3"
@@ -133,7 +137,7 @@ class TTSEngine:
                 except Exception:
                     pass
                 return None, "Audio generation failed (empty output)"
-                
+
             with open(filepath, "rb") as f:
                 AudioCache.objects.create(cache_key=cache_key, audio_data=f.read())
             return filename, None
@@ -207,7 +211,8 @@ class TTSEngine:
 
         # espeak-ng fallback (fully offline, no API needed)
         try:
-            import subprocess, tempfile
+            import subprocess
+            import tempfile
             with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
                 tmp_path = tmp.name
             subprocess.run(
@@ -279,13 +284,14 @@ class TTSEngine:
                     cache_key = TTSEngine._get_cache_key(text, voice_id)
                     fname = f"{cache_key}.mp3"
                     fpath = os.path.join(settings.AUDIO_DIR, fname)
-                    
+
                     # Sync DB access inside async using thread
                     loop = asyncio.get_running_loop()
+
                     def _check_db():
                         return AudioCache.objects.filter(cache_key=cache_key).first()
                     cache_obj = await loop.run_in_executor(None, _check_db)
-                    
+
                     if cache_obj:
                         if not os.path.exists(fpath):
                             def _write():
@@ -309,11 +315,12 @@ class TTSEngine:
                     if use_gtts:
                         from gtts import gTTS
                         lang = voice_id if voice_id in FALLBACK_LANG_MAP else "en"
+
                         def _sync_save():
                             tts = gTTS(text=text, lang=lang, slow=False)
                             tts.save(fpath)
                         await loop.run_in_executor(None, _sync_save)
-                        
+
                     if os.path.getsize(fpath) >= 100:
                         def _save_db():
                             with open(fpath, "rb") as f:

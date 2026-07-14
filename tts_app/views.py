@@ -7,8 +7,6 @@ import logging
 from datetime import datetime
 from urllib.parse import unquote
 
-logger = logging.getLogger(__name__)
-
 from django.shortcuts import render, redirect
 from django.http import JsonResponse, FileResponse, HttpResponse
 from django.views.decorators.csrf import csrf_exempt
@@ -24,6 +22,8 @@ from .models import UserPDF, SavedText, Bookmark, ReadingPosition, Pronunciation
 from .utils.pdf_processor import PDFProcessor
 from .utils.tts_engine import TTSEngine
 from .utils.document_processor import DocumentProcessor
+
+logger = logging.getLogger(__name__)
 
 
 # ── Auth Pages ──
@@ -151,7 +151,11 @@ def api_upload_batch_pdf(request):
         return JsonResponse({"error": "No files"}, status=400)
     oversized = [f.name for f in files if f.size > settings.MAX_UPLOAD_SIZE]
     if oversized:
-        return JsonResponse({"error": f"Files too large ({', '.join(oversized)}). Max {settings.MAX_UPLOAD_SIZE_MB}MB each"}, status=400)
+        names = ', '.join(oversized)
+        return JsonResponse(
+            {"error": f"Files too large ({names}). Max {settings.MAX_UPLOAD_SIZE_MB}MB each"},
+            status=400,
+        )
 
     results = []
     for f in files:
@@ -292,7 +296,7 @@ def api_tts_stream(request):
     audio_bytes, error = TTSEngine.generate_audio_stream(text, voice)
     if error:
         return JsonResponse({"error": error}, status=500)
-        
+
     size = len(audio_bytes)
     range_header = request.META.get('HTTP_RANGE', '').strip()
 
@@ -305,7 +309,7 @@ def api_tts_stream(request):
                 end = match.group(2)
                 end = int(end) if end else size - 1
                 length = end - start + 1
-                
+
                 response = HttpResponse(audio_bytes[start:end + 1], status=206, content_type="audio/mpeg")
                 response['Content-Range'] = f'bytes {start}-{end}/{size}'
                 response['Content-Length'] = str(length)
@@ -366,7 +370,7 @@ def api_tts_batch(request):
     voice = data.get("voice", "en-US-JennyNeural")
     if not texts:
         return JsonResponse({"error": "No texts"}, status=400)
-    
+
     texts_flat = [t["text"] if isinstance(t, dict) else t for t in texts]
     mapping = TTSEngine.generate_audio_batch(texts_flat, voice)
     return JsonResponse({"mapping": {str(k): v for k, v in mapping.items()}, "count": len(mapping)})
