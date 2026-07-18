@@ -1,6 +1,7 @@
 import os
 import sys
 import mimetypes
+import logging
 
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
@@ -13,6 +14,18 @@ os.environ["DJANGO_DEBUG"] = "false"
 os.environ.setdefault("DJANGO_UPLOAD_DIR", "/tmp/uploads")
 os.environ.setdefault("DJANGO_AUDIO_DIR", "/tmp/audio")
 
+# Force stdout/stderr unbuffered for Vercel log capture
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(line_buffering=True)
+if hasattr(sys.stderr, "reconfigure"):
+    sys.stderr.reconfigure(line_buffering=True)
+
+# Route all Django logging to stdout so Vercel captures it
+handler = logging.StreamHandler(sys.stdout)
+handler.setLevel(logging.INFO)
+logging.root.handlers = [handler]
+logging.root.setLevel(logging.INFO)
+
 import django
 django.setup()
 
@@ -22,9 +35,13 @@ call_command("migrate", "--noinput")
 
 static_root = os.path.join(project_root, "static")
 
+# Pre-load WSGI app once at module level instead of per-request
+_wsgi_app = None
+
 
 class StaticFileHandler:
     def __call__(self, environ, start_response):
+        global _wsgi_app
         path = environ.get("PATH_INFO", "/")
         if path.startswith("/static/"):
             file_path = os.path.join(static_root, path[len("/static/"):])
@@ -46,8 +63,10 @@ class StaticFileHandler:
                 except Exception:
                     pass
 
-        from django.core.wsgi import get_wsgi_application
-        return get_wsgi_application()(environ, start_response)
+        if _wsgi_app is None:
+            from django.core.wsgi import get_wsgi_application
+            _wsgi_app = get_wsgi_application()
+        return _wsgi_app(environ, start_response)
 
 
 app = StaticFileHandler()
