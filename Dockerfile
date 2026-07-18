@@ -16,6 +16,9 @@ COPY . .
 RUN mkdir -p /app/static/uploads /app/static/audio /app/staticfiles \
     && python manage.py collectstatic --noinput
 
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 RUN addgroup --system --gid 1001 app \
     && adduser --system --uid 1001 --gid 1001 app \
     && chown -R app:app /app
@@ -26,6 +29,4 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
     CMD curl -f http://localhost:8000/api/health/ || exit 1
 
 USER app
-
-COPY entrypoint.sh /entrypoint.sh
 ENTRYPOINT ["/bin/bash", "/entrypoint.sh"]
