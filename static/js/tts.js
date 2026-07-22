@@ -147,16 +147,30 @@
   });
 
   let currentPlayId = 0;
+  let nextAudio = null;
+
+  function buildTtsUrl(text, voice) {
+    return '/api/tts-stream/?text=' + encodeURIComponent(text) + '&voice=' + encodeURIComponent(voice || els.voiceSelect.value);
+  }
+
+  function preloadNextAudio() {
+    if (nextAudio) { nextAudio.src = ''; nextAudio = null; }
+    var nextIdx = cur + 1;
+    if (nextIdx >= sentences.length) return;
+    var text = sentences[nextIdx];
+    if (!text) return;
+    nextAudio = new Audio(buildTtsUrl(text));
+    nextAudio.dataset.forText = text;
+    nextAudio.volume = parseFloat(els.vol.value);
+    nextAudio.playbackRate = parseFloat(els.speed.value);
+    nextAudio.load();
+  }
 
   async function play() {
     var text = sentences[cur];
     if (!text) { next(); return; }
     try {
       var voice = els.voiceSelect.value;
-      stop();
-      currentPlayId++;
-      var reqId = currentPlayId;
-      els.playIcon.innerHTML = '<div class="spinner" style="width:16px;height:16px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;"></div>';
 
       // Apply pronunciation rules
       try {
@@ -168,7 +182,19 @@
         if (pd.text) text = pd.text;
       } catch(e) {}
 
-      audio.src = '/api/tts-stream/?text=' + encodeURIComponent(text) + '&voice=' + encodeURIComponent(voice);
+      currentPlayId++;
+      var reqId = currentPlayId;
+      els.playIcon.innerHTML = '<div class="spinner" style="width:16px;height:16px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;"></div>';
+
+      if (nextAudio && nextAudio.dataset.forText === sentences[cur]) {
+        stopWordHighlight();
+        var preloaded = nextAudio;
+        nextAudio = null;
+        audio.src = preloaded.src;
+      } else {
+        stop();
+        audio.src = buildTtsUrl(text, voice);
+      }
       audio.volume = parseFloat(els.vol.value) || 1;
       audio.playbackRate = parseFloat(els.speed.value) || 1;
 
@@ -181,6 +207,7 @@
 
       playing = true;
       updatePlayIcon();
+      preloadNextAudio();
       fetchTiming(text, voice, reqId);
     } catch(e) { showToast('Playback error', 'error'); playing = false; updatePlayIcon(); }
   }

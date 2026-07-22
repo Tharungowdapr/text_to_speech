@@ -229,6 +229,8 @@ class TTSEngine:
 
         return None, f"All TTS engines failed (edge_tts: {edge_error})"
 
+    _MEMORY_CACHE_MAX = 200
+
     @staticmethod
     def generate_audio_stream(text: str, voice_id: str = "en-US-JennyNeural") -> tuple:
         """Public method with in-memory cache for instant repeated requests"""
@@ -241,6 +243,9 @@ class TTSEngine:
 
         audio_bytes, error = TTSEngine._generate_audio_stream_cached(text, voice_id)
         if not error:
+            if len(TTSEngine._memory_cache) >= TTSEngine._MEMORY_CACHE_MAX:
+                oldest = next(iter(TTSEngine._memory_cache))
+                del TTSEngine._memory_cache[oldest]
             TTSEngine._memory_cache[cache_key] = audio_bytes
         return audio_bytes, error
 
@@ -252,6 +257,9 @@ class TTSEngine:
         timing_key = f"timing::{text}::{voice_id}"
         if timing_key in TTSEngine._timing_cache:
             return TTSEngine._timing_cache[timing_key], None
+        if len(TTSEngine._timing_cache) >= TTSEngine._MEMORY_CACHE_MAX:
+            oldest = next(iter(TTSEngine._timing_cache))
+            del TTSEngine._timing_cache[oldest]
 
         voice_info = VOICES.get(voice_id)
         if voice_info:

@@ -1,6 +1,6 @@
 (function() {
   let pdfPath = null, pdfFileName = '', sentences = [], audioMap = {}, cur = 0, playing = false;
-  let nextAudio = null, speedTrain = false, trainTimer = null, pdfDoc = null;
+  let speedTrain = false, trainTimer = null, pdfDoc = null;
   let completedSentences = 0;
   let localPdfUrl = null;
   let timingCache = {}, currentWordTimings = [], wordTimingRaf = null;
@@ -47,7 +47,21 @@
     chapterList: document.getElementById('chapterList'),
   };
 
-  var audio = new Audio();
+  var audio = null;
+
+  function createAudio() {
+    if (audio) {
+      audio.onended = null;
+      audio.onerror = null;
+      audio.oncanplaythrough = null;
+      try { audio.pause(); } catch(e) {}
+      audio.src = '';
+    }
+    audio = new Audio();
+    audio.volume = parseFloat(els.vol.value) || 1;
+    audio.playbackRate = parseFloat(els.speed.value) || 1;
+    return audio;
+  }
 
   function enableTransport(enabled) { var v = !enabled; [els.playBtn, els.skipB, els.skipF, els.jumpB, els.jumpF].forEach(function(b) { b.disabled = v; }); }
 
@@ -128,6 +142,7 @@
       if (d.error) { showToast(d.error, 'error'); els.extractBtn.disabled = false; els.extractText.textContent = 'Extract'; return; }
       sentences = d.sentences || [];
       if (!sentences.length) { showToast('No text found', 'error'); els.extractBtn.disabled = false; return; }
+      chapters = d.chapters || [];
       showToast(sentences.length + ' sentences extracted', 'success');
       if (els.formatBadge) { els.formatBadge.textContent = ext; els.formatBadge.style.display = 'inline'; }
       if (els.documentText) {
@@ -136,11 +151,13 @@
         els.documentText.style.display = 'block';
       }
       renderSentences();
+      renderChapters();
       els.transport.style.display = 'flex';
       enableTransport(true);
       els.exportBtn.disabled = false;
       els.searchBtn.disabled = false;
       els.audiobookBtn.disabled = false;
+      els.chapterToggleBtn.disabled = !chapters.length;
       els.extractBtn.disabled = false; els.extractText.textContent = 'Extract';
     } catch(e) {
       showToast('Extraction failed', 'error');
@@ -289,7 +306,7 @@
 
       sentences = d.sentences;
       chapters = d.chapters || [];
-      if (!sentences.length) { showToast('No text found', 'error'); els.extractBtn.disabled = false; return; }
+      if (!sentences.length) { showToast('No text found in document', 'error'); els.extractBtn.disabled = false; return; }
 
       if (d.ocrUsed) showToast('OCR applied (scanned PDF detected)', 'success');
 
@@ -368,7 +385,11 @@
 
   function goTo(idx) {
     if (idx < 0 || idx >= sentences.length) return;
-    stop(); cur = idx; updateUI(); if (playing) play();
+    var wasPlaying = playing;
+    stop();
+    cur = idx;
+    updateUI();
+    if (wasPlaying) play();
     savePosition();
   }
 
@@ -396,18 +417,6 @@
 
   function buildTtsUrl(text, voice) {
     return '/api/tts-stream/?text=' + encodeURIComponent(text) + '&voice=' + encodeURIComponent(voice || (els.voiceSelect && els.voiceSelect.value) || 'en-US-JennyNeural');
-  }
-
-  async function preloadNextAudio() {
-    if (nextAudio) { nextAudio.src = ''; nextAudio = null; }
-    var nextIdx = cur + 1;
-    if (nextIdx >= sentences.length) return;
-    var text = getSentenceText(sentences[nextIdx]);
-    if (!text) return;
-    nextAudio = new Audio(buildTtsUrl(text));
-    nextAudio.volume = parseFloat(els.vol.value);
-    nextAudio.playbackRate = parseFloat(els.speed.value);
-    nextAudio.load();
   }
 
   let currentRequestId = 0;
@@ -440,7 +449,7 @@
     renderSentences();
     if (wordTimingRaf) cancelAnimationFrame(wordTimingRaf);
     function tick() {
-      if (!playing) return;
+      if (!playing || !audio) return;
       var t = audio.currentTime;
       var spans = els.sentenceList.querySelectorAll('.word-highlight');
       for (var si = 0; si < spans.length; si++) {
@@ -486,33 +495,40 @@
     var text = getSentenceText(sentences[cur]);
     if (!text) { next(); return; }
     var voice = (els.voiceSelect && els.voiceSelect.value) ? els.voiceSelect.value : 'en-US-JennyNeural';
-    stop(); // clears src, removes old handler, increments requestId
+
+    stopWordHighlight();
+    currentRequestId++;
     var myId = currentRequestId;
 
-    audio.onended = null; // clear any old handler
-    audio.onerror = null;
+    var myAudio = createAudio();
 
-    audio.src = '/api/tts-stream/?text=' + encodeURIComponent(text) + '&voice=' + encodeURIComponent(voice);
-    audio.volume = parseFloat(els.vol.value) || 1;
-    audio.playbackRate = parseFloat(els.speed.value) || 1;
+    myAudio.src = buildTtsUrl(text, voice);
+    myAudio.volume = parseFloat(els.vol.value) || 1;
+    myAudio.playbackRate = parseFloat(els.speed.value) || 1;
 
-    audio.onended = function() {
+    myAudio.onended = function() {
       if (myId !== currentRequestId) return;
       markCompleted(cur);
       next();
     };
 
-    audio.onerror = function() {
+    myAudio.onerror = function(e) {
       if (myId !== currentRequestId) return;
-      showToast('Playback error: failed to load audio', 'error');
-      playing = false;
-      updatePlayIcon();
+      if (cur < sentences.length - 1) {
+        showToast('Audio error (sentence ' + (cur + 1) + ') — skipping', 'error');
+        next();
+      } else {
+        playing = false;
+        updatePlayIcon();
+        showToast('Playback error on last sentence', 'error');
+      }
     };
 
-    var playPromise = audio.play();
+    var playPromise = myAudio.play();
     if (playPromise !== undefined) {
       playPromise.catch(function(e) {
         if (myId !== currentRequestId) return;
+        if (e.name === 'AbortError') return;
         showToast('Playback failed: ' + (e.message || e), 'error');
         playing = false;
         updatePlayIcon();
@@ -521,19 +537,19 @@
 
     playing = true;
     updatePlayIcon();
-    preloadNextAudio();
     fetchTiming(text, voice, myId);
   }
 
   function stop() {
     stopWordHighlight();
     currentRequestId++;
-    audio.onended = null;
-    audio.onerror = null;
-    audio.pause();
-    audio.removeAttribute('src');
-    audio.load();
-    if (nextAudio) { nextAudio.removeAttribute('src'); nextAudio.load(); nextAudio = null; }
+    playing = false;
+    if (audio) {
+      audio.onended = null;
+      audio.onerror = null;
+      try { audio.pause(); } catch(e) {}
+      audio.src = '';
+    }
   }
 
   function markCompleted(idx) {
@@ -548,19 +564,53 @@
 
   function togglePlay() {
     if (!sentences.length) return;
-    if (playing) { playing = false; stop(); updatePlayIcon(); }
+    if (playing) { stop(); updatePlayIcon(); }
     else { play(); }
   }
 
   function next() {
     if (speedTrain && cur >= sentences.length - 1) { stopTrain(); }
-    if (cur < sentences.length - 1) { cur++; updateUI(); if (playing) play(); }
-    else { playing = false; cur = 0; updateUI(); stop(); updatePlayIcon(); }
+    if (cur < sentences.length - 1) {
+      var wasPlaying = playing;
+      stop();
+      cur++;
+      updateUI();
+      if (wasPlaying) play();
+    } else {
+      stop();
+      cur = 0;
+      updateUI();
+      updatePlayIcon();
+    }
   }
 
-  function prev() { if (cur > 0) { stop(); cur--; updateUI(); if (playing) play(); } }
-  function jumpF() { var n = Math.min(cur+5, sentences.length-1); stop(); cur = n; updateUI(); if (playing) play(); }
-  function jumpB() { var n = Math.max(cur-5, 0); stop(); cur = n; updateUI(); if (playing) play(); }
+  function prev() {
+    if (cur > 0) {
+      var wasPlaying = playing;
+      stop();
+      cur--;
+      updateUI();
+      if (wasPlaying) play();
+    }
+  }
+
+  function jumpF() {
+    var n = Math.min(cur + 5, sentences.length - 1);
+    var wasPlaying = playing;
+    stop();
+    cur = n;
+    updateUI();
+    if (wasPlaying) play();
+  }
+
+  function jumpB() {
+    var n = Math.max(cur - 5, 0);
+    var wasPlaying = playing;
+    stop();
+    cur = n;
+    updateUI();
+    if (wasPlaying) play();
+  }
 
   function updatePlayIcon() {
     els.playIcon.innerHTML = playing
@@ -637,7 +687,11 @@
   els.audiobookBtn.addEventListener('click', async function() {
     if (!sentences.length) return;
     var voice = els.voiceSelect.value;
-    var chapters = sentences.filter(function(s, i) { return (s.text || s).match(/^chapter\s+\d+/i); }).map(function(s, i) { return { title: (s.text || s).trim(), sentenceIndex: sentences.indexOf(s), index: i }; });
+    var exportChapters = chapters.length
+      ? chapters
+      : sentences
+          .filter(function(s) { return (s.text || s).match(/^chapter\s+\d+/i); })
+          .map(function(s, i) { return { title: (s.text || s).trim(), sentenceIndex: sentences.indexOf(s), index: i }; });
     if (confirm('Export audiobook as ZIP? This will generate any missing audio files.')) {
       els.audiobookBtn.disabled = true;
       els.audiobookBtn.textContent = 'Generating...';
@@ -645,7 +699,7 @@
         var r = await fetch('/api/export-zip/', {
           method: 'POST',
           headers: {'Content-Type':'application/json','X-CSRFToken':getCSRFToken()},
-          body: JSON.stringify({sentences: sentences, voice: voice, chapters: chapters})
+          body: JSON.stringify({sentences: sentences, voice: voice, chapters: exportChapters})
         });
         var blob = await r.blob();
         var a = document.createElement('a');
@@ -670,9 +724,9 @@
 
   els.voiceSelect.addEventListener('change', function() {
     audioMap = {};
+    timingCache = {};
   });
 
-  // PDF viewer dark mode (auto follow system, manual toggle overrides)
   var pdfDarkForce = null;
   function applyPdfTheme() {
     var dark = pdfDarkForce !== null ? pdfDarkForce : window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -689,7 +743,6 @@
     applyPdfTheme();
   });
 
-  // Shortcuts modal
   els.shortcutsBtn.addEventListener('click', function() {
     els.shortcutsModal.style.display = 'flex';
   });
@@ -711,7 +764,6 @@
     else if (e.code === 'Slash' && !e.shiftKey) { e.preventDefault(); if (els.shortcutsModal) els.shortcutsModal.style.display = 'flex'; }
   });
 
-  // Auto-load from URL param (at end so all functions are defined)
   var params = new URLSearchParams(window.location.search);
   if (params.get('path')) loadPdf(params.get('path'));
 })();

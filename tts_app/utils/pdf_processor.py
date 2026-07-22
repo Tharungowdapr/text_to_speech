@@ -58,7 +58,7 @@ class PDFProcessor:
         except Exception:
             return ""
 
-    MAX_SENTENCE_CHARS = 150
+    MAX_SENTENCE_CHARS = 500
 
     @staticmethod
     def _split_sentences(text: str) -> list:

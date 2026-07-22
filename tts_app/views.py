@@ -16,6 +16,7 @@ from django.contrib.auth.models import User
 from django.contrib.auth.password_validation import validate_password
 from django.core.exceptions import ValidationError
 from django.conf import settings
+from django.utils import timezone
 from django_ratelimit.decorators import ratelimit
 
 from .models import UserPDF, SavedText, Bookmark, ReadingPosition, PronunciationRule
@@ -122,9 +123,17 @@ def api_upload_pdf(request):
         fmts = ", ".join(DocumentProcessor.supported_formats())
         return JsonResponse({"error": f"Unsupported format. Supported: .pdf, {fmts}"}, status=400)
 
+    file_bytes = b"".join(f.chunks())
+    existing = UserPDF.objects.filter(user=request.user, original_name=f.name).first()
+    if existing:
+        existing.file_data = file_bytes
+        existing.uploaded_at = timezone.now()
+        existing.save(update_fields=["file_data", "uploaded_at"])
+        ext = os.path.splitext(f.name)[1].lower()
+        return JsonResponse({"id": existing.id, "name": f.name, "path": existing.stored_path, "format": ext})
+
     fid = uuid.uuid4().hex
     saved = f"{fid}_{f.name}"
-    file_bytes = b"".join(f.chunks())
     path = os.path.join(settings.UPLOAD_DIR, saved)
     try:
         with open(path, "wb") as dest:
@@ -161,10 +170,17 @@ def api_upload_batch_pdf(request):
     for f in files:
         if not f.name.lower().endswith(".pdf"):
             continue
+        file_bytes = b"".join(f.chunks())
+        existing = UserPDF.objects.filter(user=request.user, original_name=f.name).first()
+        if existing:
+            existing.file_data = file_bytes
+            existing.uploaded_at = timezone.now()
+            existing.save(update_fields=["file_data", "uploaded_at"])
+            results.append({"id": existing.id, "name": f.name, "path": existing.stored_path})
+            continue
         fid = uuid.uuid4().hex
         saved = f"{fid}_{f.name}"
         path = os.path.join(settings.UPLOAD_DIR, saved)
-        file_bytes = b"".join(f.chunks())
         try:
             with open(path, "wb") as dest:
                 dest.write(file_bytes)
