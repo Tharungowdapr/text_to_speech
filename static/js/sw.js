@@ -1,9 +1,13 @@
-const CACHE_NAME = 'pdf2audio-v1';
+const CACHE_NAME = 'pdf2audio-v2';
 const SHELL_ASSETS = [
   '/',
   '/text-to-speech/',
   '/reader/',
   '/static/manifest.json',
+  '/static/css/style.css',
+  '/static/js/main.js',
+  '/static/js/reader.js',
+  '/static/js/tts.js',
 ];
 
 self.addEventListener('install', function(e) {

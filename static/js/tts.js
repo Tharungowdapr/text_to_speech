@@ -1,6 +1,7 @@
 (function() {
   let sentences = [], cur = 0, playing = false, audioMap = {}, timingCache = {};
   let wordTimingRaf = null, currentWordTimings = [];
+  let cachedTexts = null;
 
   const els = {
     textarea: document.getElementById('ttsTextarea'),
@@ -27,8 +28,21 @@
     return text.replace(/\s+/g,' ').trim().split(/(?<=[.!?])\s+/).map(s=>s.trim()).filter(s=>s.length>0);
   }
 
-  const audio = new Audio();
-  audio.onended = () => { if (playing) next(); };
+  var audio = null;
+
+  function createAudio() {
+    if (audio) {
+      audio.onended = null;
+      audio.onerror = null;
+      audio.oncanplaythrough = null;
+      try { audio.pause(); } catch(e) {}
+      audio.src = '';
+    }
+    audio = new Audio();
+    audio.volume = parseFloat(els.vol.value) || 1;
+    audio.playbackRate = parseFloat(els.speed.value) || 1;
+    return audio;
+  }
 
   els.textarea.addEventListener('input', () => {
     const t = els.textarea.value.trim();
@@ -110,7 +124,11 @@
 
   function goTo(idx) {
     if (idx < 0 || idx >= sentences.length) return;
-    stop(); cur = idx; updateUI(); if (playing) play();
+    var wasPlaying = playing;
+    stop();
+    cur = idx;
+    updateUI();
+    if (wasPlaying) play();
   }
 
   // Batch pre-generate all audio
@@ -144,72 +162,18 @@
   // Re-generate on voice change
   els.voiceSelect.addEventListener('change', () => {
     audioMap = {};
+    timingCache = {};
   });
 
   let currentPlayId = 0;
-  let nextAudio = null;
 
   function buildTtsUrl(text, voice) {
     return '/api/tts-stream/?text=' + encodeURIComponent(text) + '&voice=' + encodeURIComponent(voice || els.voiceSelect.value);
   }
 
-  function preloadNextAudio() {
-    if (nextAudio) { nextAudio.src = ''; nextAudio = null; }
-    var nextIdx = cur + 1;
-    if (nextIdx >= sentences.length) return;
-    var text = sentences[nextIdx];
-    if (!text) return;
-    nextAudio = new Audio(buildTtsUrl(text));
-    nextAudio.dataset.forText = text;
-    nextAudio.volume = parseFloat(els.vol.value);
-    nextAudio.playbackRate = parseFloat(els.speed.value);
-    nextAudio.load();
-  }
-
-  async function play() {
-    var text = sentences[cur];
-    if (!text) { next(); return; }
-    try {
-      var voice = els.voiceSelect.value;
-
-      // Apply pronunciation rules
-      try {
-        var pr = await fetch('/api/pronunciation-rules/apply/', {
-          method: 'POST', headers: {'Content-Type':'application/json','X-CSRFToken':getCSRFToken()},
-          body: JSON.stringify({text: text})
-        });
-        var pd = await pr.json();
-        if (pd.text) text = pd.text;
-      } catch(e) {}
-
-      currentPlayId++;
-      var reqId = currentPlayId;
-      els.playIcon.innerHTML = '<div class="spinner" style="width:16px;height:16px;border:2px solid currentColor;border-top-color:transparent;border-radius:50%;"></div>';
-
-      if (nextAudio && nextAudio.dataset.forText === sentences[cur]) {
-        stopWordHighlight();
-        var preloaded = nextAudio;
-        nextAudio = null;
-        audio.src = preloaded.src;
-      } else {
-        stop();
-        audio.src = buildTtsUrl(text, voice);
-      }
-      audio.volume = parseFloat(els.vol.value) || 1;
-      audio.playbackRate = parseFloat(els.speed.value) || 1;
-
-      audio.play().catch((e) => {
-        if (reqId !== currentPlayId) return;
-        showToast('Audio playback failed: ' + (e.message || 'unknown error'), 'error');
-        playing = false;
-        updatePlayIcon();
-      });
-
-      playing = true;
-      updatePlayIcon();
-      preloadNextAudio();
-      fetchTiming(text, voice, reqId);
-    } catch(e) { showToast('Playback error', 'error'); playing = false; updatePlayIcon(); }
+  function stopWordHighlight() {
+    if (wordTimingRaf) { cancelAnimationFrame(wordTimingRaf); wordTimingRaf = null; }
+    currentWordTimings = [];
   }
 
   async function fetchTiming(text, voice, reqId) {
@@ -222,6 +186,9 @@
       const r = await fetch('/api/tts-timing/?text=' + encodeURIComponent(text) + '&voice=' + encodeURIComponent(voice));
       const d = await r.json();
       if (reqId === currentPlayId && d.words && d.words.length) {
+        if (Object.keys(timingCache).length >= 200) {
+          delete timingCache[Object.keys(timingCache)[0]];
+        }
         timingCache[cacheKey] = d.words;
         startWordHighlight(d.words);
       }
@@ -233,7 +200,7 @@
     render();
     if (wordTimingRaf) cancelAnimationFrame(wordTimingRaf);
     function tick() {
-      if (!playing) return;
+      if (!playing || !audio) return;
       var t = audio.currentTime;
       var spans = els.sentenceList.querySelectorAll('.word-highlight');
       spans.forEach(span => {
@@ -255,27 +222,113 @@
     wordTimingRaf = requestAnimationFrame(tick);
   }
 
-  function stopWordHighlight() {
-    if (wordTimingRaf) { cancelAnimationFrame(wordTimingRaf); wordTimingRaf = null; }
-    currentWordTimings = [];
+  function play() {
+    var text = sentences[cur];
+    if (!text) { next(); return; }
+
+    stopWordHighlight();
+    currentPlayId++;
+    var reqId = currentPlayId;
+
+    var myAudio = createAudio();
+
+    myAudio.src = buildTtsUrl(text);
+    myAudio.volume = parseFloat(els.vol.value) || 1;
+    myAudio.playbackRate = parseFloat(els.speed.value) || 1;
+
+    myAudio.onended = function() {
+      if (reqId !== currentPlayId) return;
+      next();
+    };
+
+    myAudio.onerror = function() {
+      if (reqId !== currentPlayId) return;
+      if (cur < sentences.length - 1) {
+        showToast('Audio error (sentence ' + (cur + 1) + ') — skipping', 'error');
+        next();
+      } else {
+        playing = false;
+        updatePlayIcon();
+        showToast('Playback error on last sentence', 'error');
+      }
+    };
+
+    var playPromise = myAudio.play();
+    if (playPromise !== undefined) {
+      playPromise.catch(function(e) {
+        if (reqId !== currentPlayId) return;
+        if (e.name === 'AbortError') return;
+        showToast('Playback failed: ' + (e.message || e), 'error');
+        playing = false;
+        updatePlayIcon();
+      });
+    }
+
+    playing = true;
+    updatePlayIcon();
+    fetchTiming(text, '', reqId);
   }
 
-  function stop() { stopWordHighlight(); audio.pause(); audio.removeAttribute('src'); audio.load(); }
+  function stop() {
+    stopWordHighlight();
+    currentPlayId++;
+    playing = false;
+    if (audio) {
+      audio.onended = null;
+      audio.onerror = null;
+      try { audio.pause(); } catch(e) {}
+      audio.src = '';
+    }
+  }
 
   function togglePlay() {
     if (!sentences.length) return;
-    if (playing) { playing = false; stop(); updatePlayIcon(); }
+    if (playing) { stop(); updatePlayIcon(); }
     else { play(); }
   }
 
   function next() {
-    if (cur < sentences.length - 1) { cur++; updateUI(); if (playing) play(); }
-    else { playing = false; cur = 0; updateUI(); stop(); updatePlayIcon(); }
+    if (cur < sentences.length - 1) {
+      var wasPlaying = playing;
+      stop();
+      cur++;
+      updateUI();
+      if (wasPlaying) play();
+    } else {
+      stop();
+      cur = 0;
+      updateUI();
+      updatePlayIcon();
+    }
   }
 
-  function prev() { if (cur > 0) { stop(); cur--; updateUI(); if (playing) play(); } }
-  function jumpF() { const n = Math.min(cur+5, sentences.length-1); stop(); cur = n; updateUI(); if (playing) play(); }
-  function jumpB() { const n = Math.max(cur-5, 0); stop(); cur = n; updateUI(); if (playing) play(); }
+  function prev() {
+    if (cur > 0) {
+      var wasPlaying = playing;
+      stop();
+      cur--;
+      updateUI();
+      if (wasPlaying) play();
+    }
+  }
+
+  function jumpF() {
+    var n = Math.min(cur + 5, sentences.length - 1);
+    var wasPlaying = playing;
+    stop();
+    cur = n;
+    updateUI();
+    if (wasPlaying) play();
+  }
+
+  function jumpB() {
+    var n = Math.max(cur - 5, 0);
+    var wasPlaying = playing;
+    stop();
+    cur = n;
+    updateUI();
+    if (wasPlaying) play();
+  }
 
   function updatePlayIcon() {
     els.playIcon.innerHTML = playing
@@ -302,15 +355,15 @@
       body: JSON.stringify({title, content: text})
     });
     const d = await r.json();
-    if (d.ok) { els.savedCount.textContent = d.count; showToast('Text saved', 'success'); }
+    if (d.ok) { els.savedCount.textContent = d.count; cachedTexts = null; showToast('Text saved', 'success'); }
   });
 
   els.savedBtn.addEventListener('click', async () => {
     const r = await fetch('/api/get-texts/');
-    const texts = await r.json();
-    els.savedCount.textContent = texts.length;
-    els.savedTextList.innerHTML = texts.length
-      ? texts.map(t => `
+    cachedTexts = await r.json();
+    els.savedCount.textContent = cachedTexts.length;
+    els.savedTextList.innerHTML = cachedTexts.length
+      ? cachedTexts.map(t => `
         <div class="card" style="margin-bottom:8px;padding:12px;">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;">
             <span style="font-weight:600;font-size:13px;">${escapeHtml(t.title)}</span>
@@ -329,14 +382,17 @@
   });
 
   window.loadText = async (id) => {
-    const r = await fetch('/api/get-texts/');
-    const texts = await r.json();
-    const t = texts.find(x => x.id === id);
+    if (!cachedTexts) {
+      const r = await fetch('/api/get-texts/');
+      cachedTexts = await r.json();
+    }
+    const t = cachedTexts.find(x => x.id === id);
     if (t) { els.textarea.value = t.content; els.textarea.dispatchEvent(new Event('input')); els.savedModal.style.display = 'none'; showToast('Text loaded', 'success'); }
   };
   window.delText = async (id) => {
     if (!confirm('Delete this saved text?')) return;
     await fetch('/api/delete-text/' + id + '/', { method: 'DELETE', headers: {'X-CSRFToken': getCSRFToken()} });
+    cachedTexts = null;
     els.savedBtn.click();
   };
 

@@ -79,6 +79,8 @@ def api_register(request):
 
 
 def api_logout(request):
+    if request.method != "POST":
+        return JsonResponse({"error": "POST required"}, status=405)
     logout(request)
     return JsonResponse({"ok": True})
 
@@ -602,10 +604,14 @@ def api_serve_pdf(request, pdf_path):
     pdf = UserPDF.objects.filter(stored_path=basename, user=request.user).first()
     if pdf:
         if pdf.file_data:
-            return HttpResponse(pdf.file_data, content_type="application/pdf")
+            response = HttpResponse(pdf.file_data, content_type="application/pdf")
+            response["Content-Disposition"] = "inline"
+            return response
         filepath = os.path.join(settings.UPLOAD_DIR, basename)
         if os.path.exists(filepath):
-            return FileResponse(open(filepath, "rb"), content_type="application/pdf")
+            response = FileResponse(open(filepath, "rb"), content_type="application/pdf")
+            response["Content-Disposition"] = "inline"
+            return response
     return JsonResponse({"error": "File not found"}, status=404)
 
 
